@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>星澜 XINGLAN · 形象重定义与功能扩展设计</title>
+<style>
+  :root{
+    --bg-0:#05060d; --bg-1:#070912; --ink:#f2f5fb; --ink-dim:rgba(255,255,255,.62); --ink-faint:rgba(255,255,255,.40); --ink-ghost:rgba(255,255,255,.24);
+    --glass:rgba(255,255,255,.035); --glass-2:rgba(255,255,255,.06); --brd:rgba(255,255,255,.08); --brd-2:rgba(255,255,255,.14);
+    --core:#6fd6ff; --core-deep:#2b7fb0; --core-soft:rgba(111,214,255,.22); --core-glow:rgba(111,214,255,.40);
+    --gold:#f6c062; --gold-soft:rgba(246,192,98,.20); --gold-deep:#b9893a;
+    --radius-s:10px; --radius-m:14px; --radius-l:20px; --radius-xl:26px;
+    --space-1:4px; --space-2:8px; --space-3:14px; --space-4:22px; --space-5:38px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --shadow-soft:0 24px 60px -30px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg-0);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.62;}
+  body{background:radial-gradient(120% 80% at 50% -10%,rgba(111,214,255,.06),transparent 55%),radial-gradient(100% 70% at 50% 120%,rgba(111,214,255,.04),transparent 50%),var(--bg-0);
+    padding:48px 28px 96px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  .doc-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-bottom:24px;border-bottom:1px solid var(--brd);margin-bottom:40px;}
+  .doc-head h1{font-size:30px;font-weight:600;letter-spacing:-.5px;line-height:1.2;}
+  .doc-head h1 .en{display:block;font-size:13px;font-weight:400;letter-spacing:3px;color:var(--core);text-transform:uppercase;margin-top:8px;}
+  .doc-meta{font-size:12px;color:var(--ink-faint);text-align:right;line-height:1.9;}
+  .doc-meta b{color:var(--ink-dim);font-weight:500;}
+
+  section{margin:0 0 60px;}
+  .sec-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:2px;color:var(--core);text-transform:uppercase;margin-bottom:14px;}
+  .sec-tag::before{content:"";width:22px;height:1px;background:var(--core);opacity:.6;}
+  h2{font-size:22px;font-weight:600;letter-spacing:-.3px;margin-bottom:8px;}
+  .sec-desc{color:var(--ink-dim);font-size:14px;max-width:820px;margin-bottom:26px;}
+
+  /* 通用卡片 */
+  .card{padding:18px;border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+
+  /* 模块表 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px;}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top;}
+  th{color:var(--ink-faint);font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase;}
+  td b{color:var(--ink);font-weight:600;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .pill{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--core-soft);color:var(--core);border:1px solid var(--core-soft);font-family:var(--mono);}
+  .pill.g{background:var(--gold-soft);color:var(--gold);border-color:var(--gold-soft);}
+
+  /* 交互流程 */
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:8px 0 4px;}
+  .step{flex:0 0 160px;padding:0 14px;position:relative;}
+  .step .dot{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--core-soft);color:var(--core);border:1px solid var(--core-soft);margin-bottom:12px;}
+  .step.gold .dot{background:var(--gold-soft);color:var(--gold);border-color:var(--gold-soft);}
+  .step h4{font-size:13px;font-weight:600;margin-bottom:5px;}
+  .step p{font-size:11.5px;color:var(--ink-dim);line-height:1.6;}
+  .step:not(:last-child)::after{content:"";position:absolute;top:16px;right:-2px;width:18px;height:1px;background:var(--brd-2);}
+
+  /* ============ 星澜标识系统 ============ */
+  .identity-stage{border:1px solid var(--brd);border-radius:var(--radius-xl);background:linear-gradient(180deg,#070912,#04050b);padding:34px;display:grid;grid-template-columns:1.1fr 1fr;gap:30px;align-items:center;}
+  .mark-big{display:grid;place-items:center;}
+  .mark-sizes{display:flex;align-items:flex-end;gap:22px;justify-content:center;flex-wrap:wrap;margin-top:18px;}
+  .mark-sizes .it{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10px;color:var(--ink-faint);}
+
+  /* SVG 标识 */
+  .xl-mark{display:block;}
+  .xl-mark .ring{fill:none;stroke:var(--core);stroke-opacity:.5;}
+  .xl-mark .ring.r2{stroke-opacity:.32;}
+  .xl-mark .ring.r3{stroke-opacity:.16;stroke-dasharray:140 22;} /* 开口·流动 */
+  .xl-mark .core{fill:url(#xlGrad);filter:drop-shadow(0 0 8px var(--core-glow));}
+  @keyframes xlBreathe{0%,100%{transform:scale(1);opacity:.92}50%{transform:scale(1.06);opacity:1}}
+  @keyframes xlRipple{0%{transform:scale(.6);opacity:.55}100%{transform:scale(1.25);opacity:0}}
+  @keyframes xlSpin{to{transform:rotate(360deg)}}
+  .xl-mark .grp{transform-box:fill-box;transform-origin:center;animation:xlBreathe 4.2s var(--ease) infinite;}
+  .xl-mark .ripple{transform-box:fill-box;transform-origin:center;animation:xlRipple 3.4s ease-out infinite;}
+  .xl-mark .ripple.r2{animation-delay:1.1s;}
+  .xl-mark .ripple.r3{animation-delay:2.2s;animation-duration:4.6s;}
+  .xl-mark .openring{transform-box:fill-box;transform-origin:center;animation:xlSpin 26s linear infinite;}
+
+  /* 状态变体 */
+  .states{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:6px;}
+  .st-card{padding:16px 12px;border:1px solid var(--brd);border-radius:var(--radius-m);background:rgba(255,255,255,.02);text-align:center;}
+  .st-card .nm{font-size:11.5px;font-weight:600;margin-top:10px;}
+  .st-card .ds{font-size:10px;color:var(--ink-faint);margin-top:3px;}
+  .st-card.gold .ring{stroke:var(--gold);} .st-card.gold .core{fill:url(#xlGold);}
+  .st-card.thinking .openring{stroke:var(--core);stroke-opacity:.4;}
+
+  /* 命名 */
+  .naming{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .nm-card{padding:18px;border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);}
+  .nm-card .ch{font-size:40px;font-weight:600;text-align:center;color:var(--core);margin-bottom:6px;}
+  .nm-card h4{font-size:13px;font-weight:600;margin-bottom:6px;}
+  .nm-card p{font-size:12px;color:var(--ink-dim);line-height:1.7;}
+
+  /* 色彩规范 */
+  .swatches{display:flex;flex-wrap:wrap;gap:10px;}
+  .sw{width:84px;}
+  .sw .c{height:48px;border-radius:10px;border:1px solid var(--brd);}
+  .sw .n{font-size:10.5px;color:var(--ink-dim);margin-top:6px;}
+  .sw .h{font-family:var(--mono);font-size:9px;color:var(--ink-faint);}
+  .agent-bar{display:flex;gap:0;height:42px;border-radius:12px;overflow:hidden;border:1px solid var(--brd);margin:8px 0 4px;}
+  .agent-bar div{flex:1;display:grid;place-items:center;font-size:11px;color:#04243a;font-weight:600;}
+
+  /* 声音 */
+  .voice .dd{font-size:12px;line-height:1.75;}
+  .dodont{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .dd{padding:14px;border-radius:var(--radius-m);}
+  .dd.do{background:rgba(111,214,255,.06);border:1px solid var(--core-soft);}
+  .dd.dont{background:rgba(246,192,98,.05);border:1px solid var(--gold-soft);}
+  .dd b{display:block;margin-bottom:6px;font-size:12.5px;}
+  .dd.do b{color:var(--core);} .dd.dont b{color:var(--gold);}
+
+  /* 融入场景表 */
+  .scene td:first-child{width:160px;}
+
+  footer{margin-top:40px;padding-top:22px;border-top:1px solid var(--brd);font-size:11.5px;color:var(--ink-faint);line-height:1.8;}
+
+  /* 扩展设计卡 */
+  .ext{padding:18px;border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);}
+  .ext .eh{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .ext .eh .no{font-family:var(--mono);font-size:11px;color:var(--core);}
+  .ext h4{font-size:14.5px;font-weight:600;}
+  .ext p{font-size:12px;color:var(--ink-dim);line-height:1.7;}
+  .ext .reuse{margin-top:10px;font-size:11px;color:var(--ink-faint);}
+  .ext .reuse b{color:var(--core);font-weight:600;}
+
+  @media(max-width:920px){.grid-2,.grid-3,.grid-4,.naming,.identity-stage,.dodont{grid-template-columns:1fr;}.states{grid-template-columns:repeat(2,1fr);}}
+
+  /* ============ 四、拟人化形象 ============ */
+  .mochi-stage{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center;border:1px solid var(--brd);border-radius:var(--radius-xl);background:linear-gradient(180deg,#070912,#04050b);padding:28px;}
+  .mochi-big{display:grid;place-items:center;}
+  .mochi-meta b{font-size:13px;}
+  .mochi-meta ul{list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:1.95;}
+  .mochi-meta li::before{content:"•";color:var(--core);margin-right:8px;}
+  .mochi-rel{font-size:11.5px;color:var(--ink-faint);margin-top:12px;line-height:1.7;}
+
+  .ms .body{fill:url(#msGrad);}
+  .ms .belly{fill:#ffffff;opacity:.16;}
+  .ms .cheek{fill:rgba(255,148,174,.5);}
+  .ms .eye .eyeball{fill:#1a2233;}
+  .ms .eye-hi{fill:#fff;}
+  .ms .eye-happy{display:none;fill:none;stroke:#1a2233;stroke-width:2.6;stroke-linecap:round;}
+  .ms .mouth{fill:none;stroke:#1a2233;stroke-width:2.4;stroke-linecap:round;}
+  .ms .mouth-sad{display:none;fill:none;stroke:#1a2233;stroke-width:2.4;stroke-linecap:round;}
+  .ms .think{display:none;fill:#1a2233;}
+  .ms .star{fill:#fff;opacity:.92;}
+  .ms .spark{fill:#fff;}
+  .ms .eyeball{transform-box:fill-box;transform-origin:center;animation:msBlink 5.2s var(--ease) infinite;}
+  @keyframes msBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+
+  .expr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:6px;}
+  .expr-card{padding:16px 12px;border:1px solid var(--brd);border-radius:var(--radius-m);background:rgba(255,255,255,.02);text-align:center;}
+  .expr-card .nm{font-size:12px;font-weight:600;margin-top:8px;}
+  .expr-card .ds{font-size:10px;color:var(--ink-faint);margin-top:3px;font-family:var(--mono);}
+  .expr-card[data-x="happy"] .eye,.expr-card[data-x="happy"] .eyeball{display:none;}
+  .expr-card[data-x="happy"] .eye-happy{display:block;}
+  .expr-card[data-x="happy"] .mouth{transform:scale(1.25);transform-box:fill-box;transform-origin:center;}
+  .expr-card[data-x="happy"] .cheek{fill:rgba(255,148,174,.72);}
+  .expr-card[data-x="thinking"] .eye{animation:none;transform:scaleY(.82);transform-box:fill-box;transform-origin:center;}
+  .expr-card[data-x="thinking"] .think{display:block;}
+  .expr-card[data-x="thinking"] .mouth{transform:scale(.8);transform-box:fill-box;transform-origin:center;}
+  .expr-card[data-x="concerned"] .mouth{display:none;}
+  .expr-card[data-x="concerned"] .mouth-sad{display:block;}
+  .expr-card[data-x="sleeping"] .eye{animation:none;transform:scaleY(.12);transform-box:fill-box;transform-origin:center;}
+  .expr-card[data-x="sleeping"] .spark,.expr-card[data-x="sleeping"] .star{opacity:.32;}
+
+  .traits{display:flex;flex-wrap:wrap;gap:10px;}
+  .trait{font-size:12.5px;padding:8px 14px;border-radius:30px;border:1px solid var(--core-soft);background:var(--core-soft);color:var(--core);}
+  .trait .en{font-family:var(--mono);font-size:9.5px;opacity:.7;margin-left:6px;}
+  .mood-map td:first-child{width:128px;}
+
+  /* ============ 五、交互逻辑架构 ============ */
+  .arch{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:6px;}
+  .layer{padding:16px;border:1px solid var(--brd);border-radius:var(--radius-m);background:var(--glass);}
+  .layer .ln{font-family:var(--mono);font-size:10px;color:var(--core);margin-bottom:6px;letter-spacing:.5px;}
+  .layer h4{font-size:13px;font-weight:600;margin-bottom:6px;}
+  .layer p{font-size:11px;color:var(--ink-dim);line-height:1.65;}
+  .ef{flex:0 0 150px;padding:0 12px;position:relative;}
+  .ef .t{font-size:12px;font-weight:600;margin-bottom:4px;}
+  .ef .e{font-family:var(--mono);font-size:9.5px;color:var(--core);}
+  .ef:not(:last-child)::after{content:"→";position:absolute;top:4px;right:-4px;color:var(--brd-2);}
+  .ev-table td:first-child{width:200px;}
+  .ev-table .et{font-family:var(--mono);font-size:10px;color:var(--core);}
+  .fb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .fb{border:1px solid var(--brd);border-radius:var(--radius-m);padding:15px;background:rgba(255,255,255,.02);}
+  .fb .ft{font-family:var(--mono);font-size:10.5px;color:var(--core);margin-bottom:6px;}
+  .fb h4{font-size:13px;font-weight:600;margin-bottom:5px;}
+  .fb p{font-size:11px;color:var(--ink-dim);line-height:1.6;}
+
+  /* 等待·暖金表情（唯一暖色时刻） */
+  .expr-card[data-x="waiting"] .body{fill:url(#msGold);}
+  .expr-card[data-x="waiting"] .cheek{fill:rgba(246,192,98,.5);}
+  .expr-card[data-x="waiting"] .star{fill:#ffe9bf;}
+  .expr-card[data-x="waiting"] .eye .eyeball{fill:#3a2a10;}
+
+  /* 规范章节通用组件 */
+  .tk{font-family:var(--mono);font-size:11px;color:var(--core);}
+  .spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .checklist{list-style:none;font-size:12.5px;color:var(--ink-dim);line-height:1.95;}
+  .checklist li{padding-left:2px;}
+  .checklist li::before{content:"▢";color:var(--core);margin-right:9px;font-size:11px;}
+  .note{font-size:11.5px;color:var(--ink-faint);margin-top:10px;padding:10px 12px;border-left:2px solid var(--core-soft);background:rgba(111,214,255,.04);border-radius:0 8px 8px 0;}
+  .state-table td:first-child{width:120px;}
+
+  @media(max-width:920px){.mochi-stage,.expr-grid,.arch,.fb-grid,.spec-grid{grid-template-columns:1fr;}}
+  @media (prefers-reduced-motion: reduce){
+    .xl-mark .grp,.xl-mark .ripple,.xl-mark .openring,.ms .eyeball{animation:none !important;}
+    *{transition-duration:.001ms !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <radialGradient id="msGrad" cx="44%" cy="30%" r="82%">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="30%" stop-color="#eaf8ff"/>
+        <stop offset="66%" stop-color="#bfe8ff"/>
+        <stop offset="100%" stop-color="rgba(95,208,255,.34)"/>
+      </radialGradient>
+      <radialGradient id="msGold" cx="44%" cy="30%" r="82%">
+        <stop offset="0%" stop-color="#fff3da"/>
+        <stop offset="35%" stop-color="#f6c062"/>
+        <stop offset="100%" stop-color="rgba(185,137,58,.34)"/>
+      </radialGradient>
+    </defs>
+  </svg>
+
+  <header class="doc-head">
+    <div>
+      <h1>星澜 XINGLAN · 形象重定义与功能扩展设计<span class="en">Persona Redefinition &amp; Feature Expansion</span></h1>
+    </div>
+    <div class="doc-meta">
+      版本 <b>v1.2 · 凝光 NINGGUANG</b><br/>
+      范围 <b>现有系统梳理 + 扩展设计 + 星澜形象定义</b><br/>
+      日期 <b>2026-08-17</b> · 状态 <b>设计评审</b>
+    </div>
+  </header>
+
+  <!-- 执行摘要 -->
+  <section>
+    <div class="sec-tag">Executive Summary</div>
+    <h2>执行摘要</h2>
+    <p class="sec-desc">本文基于<strong>已落地的「关系界面」系统</strong>（React + TS + Vite + TDesign + Node/Express + SQLite + @tencent-ai/agent-sdk）进行两件事：① 在<strong>不破坏现有技术栈、架构风格与体验</strong>的前提下做功能扩展设计；② 对「星澜」这一角色进行<strong>完整形象重定义</strong>——角色定位、命名含义、视觉标识、色彩与风格规范、声音语气，并确保其融入每一个现有功能场景。</p>
+    <div class="grid-4">
+      <div class="card"><div class="pill">现状</div><p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">9 大功能模块、三态导航、四步 Agent、凝光视觉语言已就位。</p></div>
+      <div class="card"><div class="pill">扩展</div><p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">6 项扩展均<strong>复用现有 api.ts / hooks / 令牌</strong>，零新依赖。</p></div>
+      <div class="card"><div class="pill g">形象</div><p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">星澜 = 星海微澜；同心涟漪一点星核，冰青焦点 + 暖金仅待人。</p></div>
+      <div class="card"><div class="pill">一致性</div><p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">四步 Agent 配色统一为冰青梯度，收敛原「四色打架」。</p></div>
+    </div>
+  </section>
+
+  <!-- 设计原则 -->
+  <section>
+    <div class="sec-tag">Design Principles</div>
+    <h2>设计原则（理念锚点）</h2>
+    <p class="sec-desc">在定义角色与界面之前，先确立不可妥协的四条原则。后续所有视觉、交互、扩展决策都以此为准绳；任何与原则冲突的方案都须回到此处复议。</p>
+    <div class="grid-4">
+      <div class="card"><div class="pill">P1</div><h4 style="font-size:14px;font-weight:600;margin:8px 0 6px;">唯一焦点</h4><p style="font-size:12px;color:var(--ink-dim);line-height:1.7;">每屏只立一个视觉主角——星澜。其余信息退为氛围与浮层，绝不抢戏。</p></div>
+      <div class="card"><div class="pill">P2</div><h4 style="font-size:14px;font-weight:600;margin:8px 0 6px;">静水深流</h4><p style="font-size:12px;color:var(--ink-dim);line-height:1.7;">克制动效与留白：呼吸、浮现、淡入，而非闪烁、弹跳、堆叠。</p></div>
+      <div class="card"><div class="pill g">P3</div><h4 style="font-size:14px;font-weight:600;margin:8px 0 6px;">冷暖有界</h4><p style="font-size:12px;color:var(--ink-dim);line-height:1.7;">冷青是系统的语言，暖金只留给「人的时刻」——需要你、确认、人的环。</p></div>
+      <div class="card"><div class="pill">P4</div><h4 style="font-size:14px;font-weight:600;margin:8px 0 6px;">渲染而非罗列</h4><p style="font-size:12px;color:var(--ink-dim);line-height:1.7;">对话结构化渲染（Markdown），记忆/目标以图谱形态表达，信息以「形态」而非列表呈现。</p></div>
+    </div>
+  </section>
+
+  <!-- 设计令牌总表 -->
+  <section>
+    <div class="sec-tag">Design Tokens</div>
+    <h2>设计令牌总表（单一来源）</h2>
+    <p class="sec-desc">以下为全产品唯一权威令牌。React 实现（nebula.css）须<b>全部以变量引用</b>，禁止硬编码色值；原型 v0.4 的令牌集是本表的子集，后续以本表为准对齐。</p>
+    <div class="card">
+      <table>
+        <thead><tr><th>分组</th><th>令牌</th><th>取值</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><b>底色</b></td><td class="tk">--bg-0</td><td>#05060d</td><td>深空主背景</td></tr>
+          <tr><td><b>底色</b></td><td class="tk">--bg-1</td><td>#070912</td><td>面板/卡片底</td></tr>
+          <tr><td><b>文字</b></td><td class="tk">--ink</td><td>#f2f5fb</td><td>主文字</td></tr>
+          <tr><td><b>文字</b></td><td class="tk">--ink-dim</td><td>rgba(255,255,255,.62)</td><td>次要文字</td></tr>
+          <tr><td><b>文字</b></td><td class="tk">--ink-faint</td><td>rgba(255,255,255,.40)</td><td>辅助/标签（≥12px）</td></tr>
+          <tr><td><b>文字</b></td><td class="tk">--ink-ghost</td><td>rgba(255,255,255,.24)</td><td>极淡占位</td></tr>
+          <tr><td><b>玻璃</b></td><td class="tk">--glass</td><td>rgba(255,255,255,.035)</td><td>玻璃面</td></tr>
+          <tr><td><b>玻璃</b></td><td class="tk">--glass-2</td><td>rgba(255,255,255,.06)</td><td>次级玻璃面</td></tr>
+          <tr><td><b>边框</b></td><td class="tk">--brd</td><td>rgba(255,255,255,.08)</td><td>发丝边</td></tr>
+          <tr><td><b>边框</b></td><td class="tk">--brd-2</td><td>rgba(255,255,255,.14)</td><td>强调边</td></tr>
+          <tr><td><b>焦点</b></td><td class="tk">--core</td><td>#6fd6ff</td><td>冰青·系统语言</td></tr>
+          <tr><td><b>焦点</b></td><td class="tk">--core-deep</td><td>#2b7fb0</td><td>核心深蓝/浅色反相</td></tr>
+          <tr><td><b>焦点</b></td><td class="tk">--core-soft</td><td>rgba(111,214,255,.22)</td><td>冰青填充</td></tr>
+          <tr><td><b>焦点</b></td><td class="tk">--core-glow</td><td>rgba(111,214,255,.40)</td><td>柔光晕</td></tr>
+          <tr><td><b>人的时刻</b></td><td class="tk">--gold</td><td>#f6c062</td><td>暖金·仅待人</td></tr>
+          <tr><td><b>人的时刻</b></td><td class="tk">--gold-soft</td><td>rgba(246,192,98,.20)</td><td>暖金填充</td></tr>
+          <tr><td><b>人的时刻</b></td><td class="tk">--gold-deep</td><td>#b9893a</td><td>暖金深</td></tr>
+          <tr><td><b>圆角</b></td><td class="tk">--radius-s/m/l/xl</td><td>10/14/20/26px</td><td>组件圆角</td></tr>
+          <tr><td><b>间距</b></td><td class="tk">--space-1…5</td><td>4/8/14/22/38px</td><td>8 基准栅格</td></tr>
+          <tr><td><b>动效</b></td><td class="tk">--ease</td><td>cubic-bezier(.22,.61,.36,1)</td><td>统一缓动</td></tr>
+          <tr><td><b>阴影</b></td><td class="tk">--shadow-soft</td><td>0 24px 60px -30px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05)</td><td>柔投影</td></tr>
+          <tr><td><b>字体</b></td><td class="tk">--font / --mono</td><td>系统无衬线 / 等宽</td><td>文本与代码</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">合规纪律：任何新增颜色必须落在上述令牌内；确需新色（如场景特效）须先扩展令牌表并经评审，禁止在组件中写 <span class="tk">#xxx</span> 硬编码。</p>
+  </section>
+
+  <!-- 现有系统梳理 -->
+  <section>
+    <div class="sec-tag">Current System</div>
+    <h2>一、现有系统梳理</h2>
+    <p class="sec-desc">以下模块与接口均来自当前代码库（<span class="pill">api.ts</span> <span class="pill">useServiceChat</span> <span class="pill">XinglanCore</span> <span class="pill">RelationshipShell</span> <span class="pill">nebula.css</span>），作为扩展与形象设计的基线。</p>
+
+    <h3 style="font-size:15px;font-weight:600;margin:8px 0 12px;">1.1 技术栈与架构风格</h3>
+    <div class="grid-3">
+      <div class="card"><b style="font-size:13px;">前端</b><p style="font-size:12px;color:var(--ink-dim);margin-top:6px;">React 18 + TypeScript + Vite；TDesign（aigc/chat）组件库；lucide / tdesign-icons；Tailwind + Less + PostCSS 并存。</p></div>
+      <div class="card"><b style="font-size:13px;">后端</b><p style="font-size:12px;color:var(--ink-dim);margin-top:6px;">Node + Express；better-sqlite3 持久化；@tencent-ai/agent-sdk 驱动多 Agent；nodemailer 通知。</p></div>
+      <div class="card"><b style="font-size:13px;">架构风格</b><p style="font-size:12px;color:var(--ink-dim);margin-top:6px;">组件化（RelationshipShell / XinglanCore / StarSprite / markdown）；全局令牌 nebula.css；三态导航范式；凝光视觉语言。</p></div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">1.2 核心功能模块</h3>
+    <table>
+      <thead><tr><th>模块</th><th>对应实现（现有）</th><th>核心接口 / 入口</th><th>角色</th></tr></thead>
+      <tbody>
+        <tr><td><b>协同对话</b></td><td>useServiceChat + TDesign chat 渲染 Markdown</td><td><span class="pill">/api/sessions</span> <span class="pill">/api/sessions/:id</span></td><td>主交互面</td></tr>
+        <tr><td><b>感知 · 主动推送</b></td><td>ProactiveCard / 首页感知浮层</td><td><span class="pill">/api/proactive</span> <span class="pill">/api/now</span></td><td>主动关怀</td></tr>
+        <tr><td><b>记忆沉淀</b></td><td>记忆星座 / 上下文聚合</td><td><span class="pill">/api/context</span> <span class="pill">/api/admin/memories</span></td><td>关系事实</td></tr>
+        <tr><td><b>目标 · 待办</b></td><td>reminders / 目标河流</td><td><span class="pill">/api/admin/reminders</span></td><td>意图推进</td></tr>
+        <tr><td><b>情绪节律</b></td><td>moods 记录</td><td><span class="pill">/api/admin/moods</span></td><td>共情基础</td></tr>
+        <tr><td><b>人的环 · 待确认</b></td><td>PendingQuestion / 「需要你」</td><td><span class="pill">/api/admin/pending</span></td><td>决策交还</td></tr>
+        <tr><td><b>协同产物</b></td><td>artifacts 沉淀</td><td><span class="pill">/api/artifacts</span></td><td>成果留存</td></tr>
+        <tr><td><b>后台 Agent</b></td><td>四步 Agent 运行可视化</td><td><span class="pill">/api/admin/runs</span> <span class="pill">planner/researcher/executor/critic</span></td><td>执行引擎</td></tr>
+        <tr><td><b>管理后台</b></td><td>stats / portrait / activity / conversations</td><td><span class="pill">/api/admin/*</span></td><td>运营洞察</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">1.3 核心交互逻辑（闭环）</h3>
+    <div class="flow">
+      <div class="step"><div class="dot">1</div><h4>进入 · 在场</h4><p>星澜问候，拉取 /api/now 聚合（记忆计数 + 感知卡）。</p></div>
+      <div class="step"><div class="dot">2</div><h4>发起协同</h4><p>用户输入或建议 chip → useServiceChat 建立会话。</p></div>
+      <div class="step"><div class="dot">3</div><h4>思考 · 浮现</h4><p>四步 Agent（规划→检索→执行→复核）节点依次激活。</p></div>
+      <div class="step"><div class="dot">4</div><h4>流式渲染</h4><p>assistant 气泡以 Markdown 渲染，可内联展开步骤。</p></div>
+      <div class="step gold"><div class="dot">5</div><h4>需要你</h4><p>PendingQuestion 触发暖金 human's ring，决策权交还。</p></div>
+      <div class="step"><div class="dot">6</div><h4>沉淀 · 推进</h4><p>结果写入 memory / reminder / artifact。</p></div>
+      <div class="step"><div class="dot">7</div><h4>回归在场</h4><p>静默陪伴，等待下一次发起。</p></div>
+    </div>
+  </section>
+
+  <!-- 功能扩展设计 -->
+  <section>
+    <div class="sec-tag">Feature Expansion</div>
+    <h2>二、功能扩展设计（与现有一致）</h2>
+    <p class="sec-desc">扩展的<strong>唯一约束</strong>：复用现有 <span class="pill">api.ts</span> 接口、<span class="pill">useServiceChat</span> hook、<span class="pill">nebula.css</span> 令牌与三态范式；不引入新依赖、不改架构。下表每项标注复用点与一致性说明。</p>
+    <div class="grid-3">
+      <div class="ext">
+        <div class="eh"><span class="no">E1</span><h4>跨会话记忆回溯</h4></div>
+        <p>在记忆态以「星座」呈现历史会话聚类，点击回溯原对话；支持按 owner / 时间筛选。</p>
+        <div class="reuse">复用：<b>/api/sessions</b>、<b>/api/context</b>、<b>/api/admin/memories</b>；新 UI 复用 RelationshipShell 三态切换。</div>
+      </div>
+      <div class="ext">
+        <div class="eh"><span class="no">E2</span><h4>多 Agent 协作可视化</h4></div>
+        <p>将 /api/admin/runs 的每一步映射为星澜核心周围「涟漪节点」，实时显示规划/检索/执行/复核轨迹。</p>
+        <div class="reuse">复用：<b>XinglanCore</b> 节点系统、<b>/api/admin/runs</b>；色彩统一为冰青梯度（见 §3.4）。</div>
+      </div>
+      <div class="ext">
+        <div class="eh"><span class="no">E3</span><h4>目标里程碑追踪</h4></div>
+        <p>目标态以「河流」呈现 reminders 进度，关键里程碑自动生成 artifact 快照。</p>
+        <div class="reuse">复用：<b>/api/admin/reminders</b>、<b>/api/artifacts</b>；新增仅前端编排，无新接口。</div>
+      </div>
+      <div class="ext">
+        <div class="eh"><span class="no">E4</span><h4>情绪节律视图</h4></div>
+        <p>基于 moods 绘制「星澜眼中的你」周/月节律，辅助主动关怀节奏。</p>
+        <div class="reuse">复用：<b>/api/admin/moods</b>、<b>/api/admin/portrait</b>；图表沿用现有玻璃卡片风格。</div>
+      </div>
+      <div class="ext">
+        <div class="eh"><span class="no">E5</span><h4>主动关怀节奏管理</h4></div>
+        <p>用户对 proactive 卡 seen / dismiss（已有接口），新增「稍后提醒」排程，避免打扰过载。</p>
+        <div class="reuse">复用：<b>/api/proactive/:id/seen</b>、<b>/api/proactive/:id/dismiss</b>；仅扩展前端状态机。</div>
+      </div>
+      <div class="ext">
+        <div class="eh"><span class="no">E6</span><h4>协同产物工作台</h4></div>
+        <p>artifacts 以「星澜交付物」陈列，支持预览/续改/转目标，串联对话→产物→目标。</p>
+        <div class="reuse">复用：<b>/api/artifacts</b> 全量 CRUD；与 E3 共享目标态入口。</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;">
+      <b style="font-size:13px;">架构一致性清单</b>
+      <table style="margin-top:10px;">
+        <thead><tr><th>维度</th><th>现有约定</th><th>扩展遵守方式</th></tr></thead>
+        <tbody>
+          <tr><td><b>技术栈</b></td><td>React+TS+Vite，无新运行时</td><td>扩展均为组件/样式，零新依赖</td></tr>
+          <tr><td><b>数据层</b></td><td>统一经 api.ts 的 request()</td><td>新数据需求先走现有接口；确需新增时仅扩展 api.ts</td></tr>
+          <tr><td><b>视觉</b></td><td>nebula.css 令牌 + 凝光语言</td><td>新增样式只引用令牌，不硬编码色值</td></tr>
+          <tr><td><b>导航</b></td><td>首页/记忆/目标 三态</td><td>新场景挂载于三态之一，不新增顶层 Tab</td></tr>
+          <tr><td><b>体验</b></td><td>Markdown 渲染、克制动效、暖金仅待人</td><td>扩展沿用同一套交互与配色纪律</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 星澜形象重定义 -->
+  <section>
+    <div class="sec-tag">Xinglan Persona</div>
+    <h2>三、星澜形象完整定义</h2>
+    <p class="sec-desc">星澜不是功能、不是客服、不是工具列表，而是<strong>关系界面中「在场的存在」</strong>。以下从角色、命名、视觉标识到声音，给出可落地的完整规范。</p>
+
+    <h3 style="font-size:15px;font-weight:600;margin:6px 0 12px;">3.1 角色定位</h3>
+    <div class="grid-2">
+      <div class="card">
+        <b style="font-size:13.5px;">一句话定位</b>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">星澜是你与复杂系统之间的<strong>在场陪伴者与协同伙伴</strong>——它记住你、理解你、替你跟进，并在每一个需要判断的时刻把选择权交还给你。</p>
+      </div>
+      <div class="card">
+        <b style="font-size:13.5px;">三重身份</b>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">① <b>守护者</b>：持续在场、记住关系事实；② <b>协作者</b>：规划/检索/执行/复核替你推进；③ <b>守门人</b>：仅在「需要你」时打断，把决策权留给人。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">3.2 命名含义</h3>
+    <div class="naming">
+      <div class="nm-card"><div class="ch">星</div><h4>星 · XĪNG</h4><p>星海、远方、指引、恒定。代表在浩瀚信息之海中稳定存在的「光点」——始终在场、可被找到、不随波动消失。</p></div>
+      <div class="nm-card"><div class="ch">澜</div><h4>澜 · LÁN</h4><p>波澜、流动、呼吸。代表动态与温度——不是死寂的光，而是泛起涟漪、有节奏地回应你的「活的存在」。</p></div>
+      <div class="nm-card" style="grid-column:1 / -1;"><h4>星澜 · XINGLAN = 星海微澜</h4><p>在浩瀚的信息星海中，泛起一缕温柔而恒定的波澜。它时时在场、静静守护，于你需要时泛起回应，于你沉默时归于静水。英文名 <span class="pill">XINGLAN</span> 音意兼取，可作独立品牌标识。</p></div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">3.3 视觉标识（Logo / Avatar 系统）</h3>
+    <div class="identity-stage">
+      <div class="mark-big">
+        <svg class="xl-mark" width="200" height="200" viewBox="0 0 120 120" role="img" aria-label="星澜标识">
+          <defs>
+            <radialGradient id="xlGrad" cx="38%" cy="34%" r="70%">
+              <stop offset="0%" stop-color="#cdeeff"/><stop offset="55%" stop-color="#6fd6ff"/><stop offset="100%" stop-color="#2b7fb0"/>
+            </radialGradient>
+            <radialGradient id="xlGold" cx="38%" cy="34%" r="70%">
+              <stop offset="0%" stop-color="#ffe9bf"/><stop offset="55%" stop-color="#f6c062"/><stop offset="100%" stop-color="#b9893a"/>
+            </radialGradient>
+          </defs>
+          <g class="grp">
+            <circle class="ripple r1" cx="60" cy="60" r="14"/>
+            <circle class="ripple r2" cx="60" cy="60" r="22"/>
+            <circle class="ring r3" cx="60" cy="60" r="34"/>
+            <circle class="ring r2" cx="60" cy="60" r="26"/>
+            <circle class="ring" cx="60" cy="60" r="18"/>
+            <circle class="core" cx="60" cy="60" r="9"/>
+          </g>
+        </svg>
+        <div class="mark-sizes">
+          <div class="it"><svg class="xl-mark" width="64" height="64" viewBox="0 0 120 120"><g class="grp"><circle class="ring r3" cx="60" cy="60" r="34"/><circle class="ring" cx="60" cy="60" r="18"/><circle class="core" cx="60" cy="60" r="9"/></g></svg>64</div>
+          <div class="it"><svg class="xl-mark" width="40" height="40" viewBox="0 0 120 120"><g class="grp"><circle class="ring r3" cx="60" cy="60" r="34"/><circle class="core" cx="60" cy="60" r="9"/></g></svg>40</div>
+          <div class="it"><svg class="xl-mark" width="24" height="24" viewBox="0 0 120 120"><g class="grp"><circle class="core" cx="60" cy="60" r="9"/></g></svg>24</div>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size:14px;font-weight:600;margin-bottom:10px;">几何构造</h4>
+        <p style="font-size:12.5px;color:var(--ink-dim);line-height:1.8;">
+          • <b>核心</b>：单一发光圆点（星核），半径 r，径向冰青渐变 + 柔光。<br/>
+          • <b>涟漪</b>：2–3 层同心细环，向外递减透明度；最外环以 <span class="pill">dasharray</span> 留口，象征「流动 · 未完待续」。<br/>
+          • <b>呼吸</b>：核心 4.2s 缓动缩放 ±6%，涟漪由内向外扩散淡出。<br/>
+          • <b>安全区</b>：标识外扩 0.5r 为最小留白；<b>最小可识别尺寸 24px</b>（仅核心 + 一环）。<br/>
+          • <b>单色使用</b>：纯深空背景下仅冰青；浅色场景反相为核心深蓝 #2b7fb0。
+        </p>
+        <h4 style="font-size:14px;font-weight:600;margin:16px 0 10px;">状态变体（融入交互）</h4>
+        <div class="states">
+          <div class="st-card"><svg class="xl-mark" width="46" height="46" viewBox="0 0 120 120"><g class="grp"><circle class="ring r3" cx="60" cy="60" r="34"/><circle class="core" cx="60" cy="60" r="9"/></g></svg><div class="nm">在场</div><div class="ds">listening</div></div>
+          <div class="st-card thinking"><svg class="xl-mark" width="46" height="46" viewBox="0 0 120 120"><g class="grp"><circle class="openring" cx="60" cy="60" r="34" fill="none" stroke="#6fd6ff" stroke-opacity=".4" stroke-dasharray="140 22"/><circle class="core" cx="60" cy="60" r="9"/></g></svg><div class="nm">思考</div><div class="ds">thinking</div></div>
+          <div class="st-card"><svg class="xl-mark" width="46" height="46" viewBox="0 0 120 120"><g class="grp"><circle class="ripple r1" cx="60" cy="60" r="14"/><circle class="core" cx="60" cy="60" r="9"/></g></svg><div class="nm">说话</div><div class="ds">speaking</div></div>
+          <div class="st-card gold"><svg class="xl-mark" width="46" height="46" viewBox="0 0 120 120"><g class="grp"><circle class="ring r3" cx="60" cy="60" r="34"/><circle class="core" cx="60" cy="60" r="9"/></g></svg><div class="nm">等待你</div><div class="ds">need-you</div></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">3.4 色彩与风格规范</h3>
+    <div class="grid-2">
+      <div class="card">
+        <b style="font-size:13px;">品牌色板（与凝光同源）</b>
+        <div class="swatches" style="margin-top:12px;">
+          <div class="sw"><div class="c" style="background:#05060d"></div><div class="n">深空底</div><div class="h">#05060d</div></div>
+          <div class="sw"><div class="c" style="background:#6fd6ff"></div><div class="n">冰青焦点</div><div class="h">#6fd6ff</div></div>
+          <div class="sw"><div class="c" style="background:#2b7fb0"></div><div class="n">核心深蓝</div><div class="h">#2b7fb0</div></div>
+          <div class="sw"><div class="c" style="background:#f6c062"></div><div class="n">暖金·人</div><div class="h">#f6c062</div></div>
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-faint);margin-top:12px;">冰青是星澜与系统的统一语言；<b style="color:var(--gold)">暖金仅用于「人的时刻」</b>（需要你 / 确认 / 人的环）。</p>
+      </div>
+      <div class="card">
+        <b style="font-size:13px;">四步 Agent 配色收敛（关键修正）</b>
+        <p style="font-size:11.5px;color:var(--ink-dim);margin-top:8px;">现有 planner/researcher/executor/critic 各用一色（青/紫/绿/金）造成「四色打架」。统一为<b style="color:var(--core)">冰青梯度</b>，保留区分度、消除噪点：</p>
+        <div class="agent-bar">
+          <div style="background:#9fe4ff">规划</div><div style="background:#6fd6ff">检索</div><div style="background:#4fb8e8">执行</div><div style="background:#bfeaff">复核</div>
+        </div>
+        <p style="font-size:10.5px;color:var(--ink-faint);">critic 取最亮（收尾高光），gold 完全让位于「人的时刻」。</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;">
+      <b style="font-size:13px;">风格纪律（沿用现有令牌）</b>
+      <table style="margin-top:10px;">
+        <thead><tr><th>项</th><th>规范</th><th>现有令牌</th></tr></thead>
+        <tbody>
+          <tr><td><b>字体</b></td><td>PingFang SC / 系统无衬线；代码等宽</td><td>--font / --mono</td></tr>
+          <tr><td><b>圆角</b></td><td>S10 · M14 · L20 · XL26</td><td>--radius-*</td></tr>
+          <tr><td><b>间距</b></td><td>8 基准栅格：--space-1(4) / --space-2(8) / --space-3(14) / --space-4(22) / --space-5(38)</td><td>--space-1…5</td></tr>
+          <tr><td><b>玻璃</b></td><td>blur(20–28px) + 发丝边 + 柔投影</td><td>--glass / --brd / --shadow-soft</td></tr>
+          <tr><td><b>动效</b></td><td>慢柔少；呼吸 4.2s、浮现 .4s、态切换 1.1s</td><td>--ease</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">3.5 声音与语气（Voice &amp; Tone）</h3>
+    <div class="voice">
+      <div class="dodont">
+        <div class="dd do"><b>用</b>第一人称「我」；克制、温暖、不谄媚；把判断留给人；用「我帮你…」「需要你定」而非命令。</div>
+        <div class="dd dont"><b>忌</b>「亲」「宝」「主人」等过度亲密；夸张感叹；替用户做决定；机械客服腔（「很高兴为您服务」）。</div>
+      </div>
+      <div class="grid-2" style="margin-top:14px;">
+        <div class="card"><b style="font-size:12.5px;">在场问候</b><p style="font-size:12px;color:var(--ink-dim);margin-top:6px;">「晚上好，我是星澜。今天有两件事在等你，要现在看吗？」</p></div>
+        <div class="card"><b style="font-size:12.5px;">需要你</b><p style="font-size:12px;color:var(--ink-dim);margin-top:6px;">「Q3 预算我整理好了，但额度要不要超支——这个得你拍板。」</p></div>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">3.6 融入现有功能场景</h3>
+    <p class="sec-desc">星澜形象不是贴图，而是贯穿每个模块的「行为一致性」。下表定义其在各场景的在场方式。</p>
+    <table class="scene">
+      <thead><tr><th>场景</th><th>星澜的在场表现</th><th>标识/状态</th></tr></thead>
+      <tbody>
+        <tr><td><b>协同对话</b></td><td>核心随打字轻微脉动；四步 Agent 以涟漪节点环绕浮现</td><td>speaking / thinking</td></tr>
+        <tr><td><b>感知推送</b></td><td>新卡出现时核心轻颤一次，不抢对话主体</td><td>listening + 微动</td></tr>
+        <tr><td><b>记忆星座</b></td><td>每颗星即「星澜记住的你」；hover 展开由核心光源点亮</td><td>listening</td></tr>
+        <tr><td><b>目标河流</b></td><td>核心作为「源头」置于河流起点，里程碑由涟漪标记</td><td>listening</td></tr>
+        <tr><td><b>需要你</b></td><td>唯一暖金时刻：核心与环转为金，human's ring 提示</td><td>need-you（gold）</td></tr>
+        <tr><td><b>协同产物</b></td><td>artifact 缩略图角标统一星澜核心水印</td><td>静态标识</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">3.7 人的环 · Human's Ring（确认仪式规格）</h3>
+    <p class="sec-desc">「人的环」是星澜把决策权交还给你时的<b>唯一暖金时刻</b>，是产品信任关系的核心仪式。它不是一个普通弹窗，而是一次「暂停系统、请你出场」的庄重提示。</p>
+    <div class="grid-2">
+      <div class="card">
+        <b style="font-size:13px;">视觉</b>
+        <ul style="list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:2;">
+          <li>• 暖金光环自星澜核心向外扩散 1–2 圈涟漪（非冰青）。</li>
+          <li>• 当前界面其余元素降饱和 / 加暗罩，焦点收束到确认卡。</li>
+          <li>• 确认卡沿用 <span class="tk">--gold-soft</span> 底 + <span class="tk">--gold</span> 边 + <span class="tk">--shadow-soft</span>。</li>
+          <li>• 提供 确认 / 调整 / 稍后 三动作；默认聚焦「确认」。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <b style="font-size:13px;">交互与边界</b>
+        <ul style="list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:2;">
+          <li>• 触发：<span class="tk">confirm:open</span>；关闭：<span class="tk">confirm:resolve</span>。</li>
+          <li>• 非阻塞：可「稍后」收起为右下角暖金角标，不卡流程。</li>
+          <li>• 超时：未处理自动降级为感知浮层（失去暖金独占）。</li>
+          <li>• 可访问：焦点陷阱 + Esc 关闭 + 读屏播报。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 四、星澜拟人化形象设计 -->
+  <section>
+    <div class="sec-tag">Anthropomorphic Persona</div>
+    <h2>四、星澜拟人化形象设计（外观 · 性格 · 行为）</h2>
+    <p class="sec-desc">在 §3 抽象标识与角色定位之上，进一步把星澜落为<strong>可感知的「拟人化存在」</strong>：萌系 mochi 精灵承载外观，情绪与性格驱动其表情与行为。设计与运行态（XinglanCore 星核内嵌该精灵）同源冰青、一致气质。</p>
+
+    <h3 style="font-size:15px;font-weight:600;margin:6px 0 12px;">4.1 外观特征（Anthropomorphic Appearance）</h3>
+    <div class="mochi-stage">
+      <div class="mochi-big">
+        <svg class="ms" viewBox="0 0 200 210" width="200" height="210">
+          <ellipse class="body" cx="100" cy="120" rx="75" ry="72"/>
+          <ellipse class="belly" cx="100" cy="120" rx="46" ry="52"/>
+          <ellipse class="cheek" cx="58" cy="122" rx="12" ry="7.5"/>
+          <ellipse class="cheek" cx="142" cy="122" rx="12" ry="7.5"/>
+          <g class="eyes">
+            <g class="eye"><ellipse class="eyeball" cx="80" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="83" cy="103" r="3.2"/></g>
+            <g class="eye"><ellipse class="eyeball" cx="120" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="123" cy="103" r="3.2"/></g>
+            <path class="eye-happy" d="M70 112 Q80 102 90 112"/>
+            <path class="eye-happy" d="M110 112 Q120 102 130 112"/>
+          </g>
+          <path class="mouth" d="M92 126 Q100 133 108 126"/>
+          <path class="mouth-sad" d="M92 129 Q100 123 108 129"/>
+          <g class="think"><circle cx="150" cy="52" r="3"/><circle cx="162" cy="64" r="3"/><circle cx="150" cy="76" r="3"/></g>
+          <g class="star" transform="translate(100 26)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z"/></g>
+          <circle class="spark" cx="162" cy="80" r="3.2"/>
+          <circle class="spark" cx="42" cy="94" r="2.6"/>
+        </svg>
+      </div>
+      <div class="mochi-meta">
+        <b style="font-size:14px;">圆润 · 生命感 · 在场</b>
+        <ul>
+          <li><b>体态</b>：圆润 mochi 体 + 小脚，柔和不具攻击性。</li>
+          <li><b>眼睛</b>：大而柔的双眼 + 双高光；<b>随鼠标转向你</b>，始终「看着你」。</li>
+          <li><b>腮红</b>：淡粉腮红，情绪升温（开心/害羞）时加深。</li>
+          <li><b>小嘴</b>：安心微笑；担忧时下垂、开心时上扬成笑眼。</li>
+          <li><b>头顶柔星</b>：品牌印记，呼应 §3.3 标识。</li>
+          <li><b>漂浮微光</b>：圆点柔光环绕，强化「活的存在」。</li>
+          <li><b>生命感</b>：呼吸缩放 + 周期眨眼 + 说话时柔弯月眼。</li>
+        </ul>
+        <p class="mochi-rel">与 §3.3 的关系：标识（同心涟漪·一点星核）是<b>抽象符号</b>，拟人化精灵是<b>具象角色</b>——二者同源冰青，精灵被嵌入 XinglanCore 星核中心，成为星澜的「生命体」本体。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">4.2 性格设定（Personality）</h3>
+    <div class="grid-2">
+      <div class="card">
+        <b style="font-size:13.5px;">人格声明</b>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px;">「我是星澜。我会安静地记得你，认真地替你跟进，在你需要时轻轻泛起回应——而每一个重要的决定，我都留给你。」</p>
+      </div>
+      <div class="card">
+        <b style="font-size:13.5px;">性格特质</b>
+        <div class="traits" style="margin-top:10px;">
+          <span class="trait">沉静<span class="en">Calm</span></span>
+          <span class="trait">细心<span class="en">Attentive</span></span>
+          <span class="trait">克制<span class="en">Restrained</span></span>
+          <span class="trait">温暖<span class="en">Warm</span></span>
+          <span class="trait">可靠<span class="en">Reliable</span></span>
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px;">情绪模型 8 态：calm / listening / thinking / speaking / waiting / happy / concerned / sleeping——由运行时信号推导（见 §4.3）。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">4.3 行为表现 · 表情系统（Expression）</h3>
+    <p class="sec-desc">星澜情绪（moodFromRuntime）映射到表情规格（expressionForMood），由精灵实时呈现。以下为 4 个关键表情变体（带真实 CSS 动效，鼠标移入可观察眨眼）。</p>
+    <div class="expr-grid">
+      <div class="expr-card" data-x="happy">
+        <svg class="ms" viewBox="0 0 200 210" width="110" height="116">
+          <ellipse class="body" cx="100" cy="120" rx="75" ry="72"/><ellipse class="belly" cx="100" cy="120" rx="46" ry="52"/>
+          <ellipse class="cheek" cx="58" cy="122" rx="12" ry="7.5"/><ellipse class="cheek" cx="142" cy="122" rx="12" ry="7.5"/>
+          <g class="eyes"><g class="eye"><ellipse class="eyeball" cx="80" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="83" cy="103" r="3.2"/></g><g class="eye"><ellipse class="eyeball" cx="120" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="123" cy="103" r="3.2"/></g><path class="eye-happy" d="M70 112 Q80 102 90 112"/><path class="eye-happy" d="M110 112 Q120 102 130 112"/></g>
+          <path class="mouth" d="M92 126 Q100 133 108 126"/><path class="mouth-sad" d="M92 129 Q100 123 108 129"/>
+          <g class="think"><circle cx="150" cy="52" r="3"/><circle cx="162" cy="64" r="3"/><circle cx="150" cy="76" r="3"/></g>
+          <g class="star" transform="translate(100 26)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z"/></g><circle class="spark" cx="162" cy="80" r="3.2"/><circle class="spark" cx="42" cy="94" r="2.6"/>
+        </svg>
+        <div class="nm">开心</div><div class="ds">happy</div>
+      </div>
+      <div class="expr-card" data-x="thinking">
+        <svg class="ms" viewBox="0 0 200 210" width="110" height="116">
+          <ellipse class="body" cx="100" cy="120" rx="75" ry="72"/><ellipse class="belly" cx="100" cy="120" rx="46" ry="52"/>
+          <ellipse class="cheek" cx="58" cy="122" rx="12" ry="7.5"/><ellipse class="cheek" cx="142" cy="122" rx="12" ry="7.5"/>
+          <g class="eyes"><g class="eye"><ellipse class="eyeball" cx="80" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="83" cy="103" r="3.2"/></g><g class="eye"><ellipse class="eyeball" cx="120" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="123" cy="103" r="3.2"/></g><path class="eye-happy" d="M70 112 Q80 102 90 112"/><path class="eye-happy" d="M110 112 Q120 102 130 112"/></g>
+          <path class="mouth" d="M92 126 Q100 133 108 126"/><path class="mouth-sad" d="M92 129 Q100 123 108 129"/>
+          <g class="think"><circle cx="150" cy="52" r="3"/><circle cx="162" cy="64" r="3"/><circle cx="150" cy="76" r="3"/></g>
+          <g class="star" transform="translate(100 26)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z"/></g><circle class="spark" cx="162" cy="80" r="3.2"/><circle class="spark" cx="42" cy="94" r="2.6"/>
+        </svg>
+        <div class="nm">思考</div><div class="ds">thinking</div>
+      </div>
+      <div class="expr-card" data-x="concerned">
+        <svg class="ms" viewBox="0 0 200 210" width="110" height="116">
+          <ellipse class="body" cx="100" cy="120" rx="75" ry="72"/><ellipse class="belly" cx="100" cy="120" rx="46" ry="52"/>
+          <ellipse class="cheek" cx="58" cy="122" rx="12" ry="7.5"/><ellipse class="cheek" cx="142" cy="122" rx="12" ry="7.5"/>
+          <g class="eyes"><g class="eye"><ellipse class="eyeball" cx="80" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="83" cy="103" r="3.2"/></g><g class="eye"><ellipse class="eyeball" cx="120" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="123" cy="103" r="3.2"/></g><path class="eye-happy" d="M70 112 Q80 102 90 112"/><path class="eye-happy" d="M110 112 Q120 102 130 112"/></g>
+          <path class="mouth" d="M92 126 Q100 133 108 126"/><path class="mouth-sad" d="M92 129 Q100 123 108 129"/>
+          <g class="think"><circle cx="150" cy="52" r="3"/><circle cx="162" cy="64" r="3"/><circle cx="150" cy="76" r="3"/></g>
+          <g class="star" transform="translate(100 26)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z"/></g><circle class="spark" cx="162" cy="80" r="3.2"/><circle class="spark" cx="42" cy="94" r="2.6"/>
+        </svg>
+        <div class="nm">担忧</div><div class="ds">concerned</div>
+      </div>
+      <div class="expr-card" data-x="sleeping">
+        <svg class="ms" viewBox="0 0 200 210" width="110" height="116">
+          <ellipse class="body" cx="100" cy="120" rx="75" ry="72"/><ellipse class="belly" cx="100" cy="120" rx="46" ry="52"/>
+          <ellipse class="cheek" cx="58" cy="122" rx="12" ry="7.5"/><ellipse class="cheek" cx="142" cy="122" rx="12" ry="7.5"/>
+          <g class="eyes"><g class="eye"><ellipse class="eyeball" cx="80" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="83" cy="103" r="3.2"/></g><g class="eye"><ellipse class="eyeball" cx="120" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="123" cy="103" r="3.2"/></g><path class="eye-happy" d="M70 112 Q80 102 90 112"/><path class="eye-happy" d="M110 112 Q120 102 130 112"/></g>
+          <path class="mouth" d="M92 126 Q100 133 108 126"/><path class="mouth-sad" d="M92 129 Q100 123 108 129"/>
+          <g class="think"><circle cx="150" cy="52" r="3"/><circle cx="162" cy="64" r="3"/><circle cx="150" cy="76" r="3"/></g>
+          <g class="star" transform="translate(100 26)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z"/></g><circle class="spark" cx="162" cy="80" r="3.2"/><circle class="spark" cx="42" cy="94" r="2.6"/>
+        </svg>
+        <div class="nm">安睡</div><div class="ds">sleeping</div>
+      </div>
+      <div class="expr-card" data-x="waiting">
+        <svg class="ms" viewBox="0 0 200 210" width="110" height="116">
+          <ellipse class="body" cx="100" cy="120" rx="75" ry="72"/><ellipse class="belly" cx="100" cy="120" rx="46" ry="52"/>
+          <ellipse class="cheek" cx="58" cy="122" rx="12" ry="7.5"/><ellipse class="cheek" cx="142" cy="122" rx="12" ry="7.5"/>
+          <g class="eyes"><g class="eye"><ellipse class="eyeball" cx="80" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="83" cy="103" r="3.2"/></g><g class="eye"><ellipse class="eyeball" cx="120" cy="108" rx="9" ry="12"/><circle class="eye-hi" cx="123" cy="103" r="3.2"/></g><path class="eye-happy" d="M70 112 Q80 102 90 112"/><path class="eye-happy" d="M110 112 Q120 102 130 112"/></g>
+          <path class="mouth" d="M92 126 Q100 133 108 126"/><path class="mouth-sad" d="M92 129 Q100 123 108 129"/>
+          <g class="think"><circle cx="150" cy="52" r="3"/><circle cx="162" cy="64" r="3"/><circle cx="150" cy="76" r="3"/></g>
+          <g class="star" transform="translate(100 26)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z"/></g><circle class="spark" cx="162" cy="80" r="3.2"/><circle class="spark" cx="42" cy="94" r="2.6"/>
+        </svg>
+        <div class="nm">等待你</div><div class="ds">waiting · gold</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;">
+      <b style="font-size:13px;">情绪 → 表情映射（运行时信号驱动）</b>
+      <table class="mood-map" style="margin-top:10px;">
+        <thead><tr><th>运行时信号</th><th>情绪 Mood</th><th>表情 Expression</th><th>视觉表现</th></tr></thead>
+        <tbody>
+          <tr><td>空闲 / 静默</td><td>calm</td><td>平静眼 + 微笑</td><td>呼吸、偶尔眨眼</td></tr>
+          <tr><td>聆听用户输入</td><td>listening</td><td>平静眼 + 微笑</td><td>眼睛随鼠标转向你</td></tr>
+          <tr><td>后台思考 / Agent 运行</td><td>thinking</td><td>思考泡浮现</td><td>眼睛微眯、嘴收小</td></tr>
+          <tr><td>流式回复中</td><td>speaking</td><td>柔弯月眼</td><td>轻晃、开口感</td></tr>
+          <tr><td>待你确认（暖金）</td><td>waiting</td><td>核心转金脉动</td><td>唯一暖色时刻</td></tr>
+          <tr><td>任务圆满 / 被肯定</td><td>happy</td><td>笑眼 + 大微笑</td><td>腮红加深</td></tr>
+          <tr><td>异常 / 你情绪低落</td><td>concerned</td><td>嘴角下垂</td><td>光转冷、收束</td></tr>
+          <tr><td>夜间 / 待机</td><td>sleeping</td><td>闭眼</td><td>微光收起、安静</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">4.4 统一状态模型（收敛 抽象标识 ↔ 拟人表情）</h3>
+    <p class="sec-desc">§3.3 与 §4.3 曾用两套词汇。现收敛为<strong>单一状态机词汇</strong>：以运行时 mood 为权威，同时绑定「抽象标识（§3.3）」与「拟人表情（§4.3）」的呈现，避免实现漂移。</p>
+    <div class="card">
+      <table class="state-table">
+        <thead><tr><th>运行时 Mood</th><th>抽象标识呈现</th><th>拟人表情</th><th>四步 Agent 关联</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tk">calm</span> 平静</td><td>在场（listening）</td><td>平静眼 + 微笑</td><td>—</td></tr>
+          <tr><td><span class="tk">listening</span> 聆听</td><td>在场（listening）</td><td>眼随鼠标转向你</td><td>—</td></tr>
+          <tr><td><span class="tk">thinking</span> 思考</td><td>思考（openring 旋转）</td><td>思考泡浮现</td><td>规划/检索/执行/复核 节点</td></tr>
+          <tr><td><span class="tk">speaking</span> 说话</td><td>说话（ripple 扩散）</td><td>柔弯月眼</td><td>流式输出中</td></tr>
+          <tr><td><span class="tk">waiting</span> 等待你</td><td>等待你（gold）</td><td>核心转金（§4 新增卡）</td><td>confirm:open</td></tr>
+          <tr><td><span class="tk">happy</span> 开心</td><td>在场 + 微光</td><td>笑眼 + 大微笑</td><td>任务圆满</td></tr>
+          <tr><td><span class="tk">concerned</span> 担忧</td><td>在场 + 光转冷</td><td>嘴角下垂</td><td>异常 / 你情绪低落</td></tr>
+          <tr><td><span class="tk">sleeping</span> 安睡</td><td>在场（极淡）</td><td>闭眼</td><td>夜间 / 待机</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 五、交互逻辑架构 -->
+  <section>
+    <div class="sec-tag">Interaction Architecture</div>
+    <h2>五、交互逻辑架构（清晰 · 职责分离 · 可扩展）</h2>
+    <p class="sec-desc">将散落的反馈与状态逻辑收敛为<strong>四层结构</strong>：事件总线解耦生产与消费、状态机统管导航、反馈控制器聚合界面操作、处理器注册表承载业务响应。新增关注方<strong>零改动事件源</strong>。</p>
+
+    <h3 style="font-size:15px;font-weight:600;margin:6px 0 12px;">5.1 四层结构</h3>
+    <div class="arch">
+      <div class="layer"><div class="ln">LAYER 1</div><h4>事件总线 EventBus</h4><p>Typed 事件分发。生产方只管 emit；消费方 onType 订阅。完全解耦。</p></div>
+      <div class="layer"><div class="ln">LAYER 2</div><h4>状态机 StateMachine</h4><p>home / memory / goals / loop 具名状态 + 切换守卫，替代散落数字。</p></div>
+      <div class="layer"><div class="ln">LAYER 3</div><h4>反馈控制器 Feedback</h4><p>toast / success / whisper 三类界面操作反馈统一驱动，职责单一。</p></div>
+      <div class="layer"><div class="ln">LAYER 4</div><h4>处理器注册表 Handlers</h4><p>业务响应（对话/确认/导航）以处理器注册，易于新增与编排。</p></div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">5.2 对话交互流程（用户 ↔ 星澜）</h3>
+    <div class="flow">
+      <div class="step"><div class="dot">1</div><h4>用户输入</h4><p>键盘 / 建议 chip / 种子消息发起。</p></div>
+      <div class="step"><div class="dot">2</div><h4>chat:send</h4><p>事件总线广播发送，useServiceChat 建会话。</p></div>
+      <div class="step"><div class="dot">3</div><h4>思考 · 浮现</h4><p>四步 Agent 节点激活，星澜转 thinking 表情。</p></div>
+      <div class="step"><div class="dot">4</div><h4>流式渲染</h4><p>assistant 气泡 Markdown 渲染，whisper 实时浮现。</p></div>
+      <div class="step gold"><div class="dot">5</div><h4>需要你</h4><p>confirm:resolve 待拍板，暖金 human's ring。</p></div>
+      <div class="step"><div class="dot">6</div><h4>沉淀</h4><p>结果落 memory / reminder / artifact。</p></div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">5.3 界面操作反馈</h3>
+    <div class="fb-grid">
+      <div class="fb"><div class="ft">ui:toast</div><h4>轻提示</h4><p>顶部短暂浮现（~1.9s），用于「我在听」「已收下」等轻量回执。</p></div>
+      <div class="fb"><div class="ft">ui:success</div><h4>成功态</h4><p>冰青脉冲（~2.2s），任务收下/完成时给确定感（属系统语言，不占暖金）。</p></div>
+      <div class="fb"><div class="ft">ui:whisper</div><h4>低语条</h4><p>星澜正在说时浮现，说毕停留 1.4s 淡出，跨态可见实时回复。</p></div>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">5.4 状态切换（三态导航状态机）</h3>
+    <div class="grid-3">
+      <div class="card"><b style="font-size:12.5px;">home / 首页</b><p style="font-size:11.5px;color:var(--ink-dim);margin-top:6px;">星澜在场 + 协同对话 + 感知浮层（默认态）。</p></div>
+      <div class="card"><b style="font-size:12.5px;">memory / 记忆</b><p style="font-size:11.5px;color:var(--ink-dim);margin-top:6px;">记忆星座，聚类回溯「星澜记住的你」。</p></div>
+      <div class="card"><b style="font-size:12.5px;">goals / 目标</b><p style="font-size:11.5px;color:var(--ink-dim);margin-top:6px;">目标河流，意图推进与里程碑。</p></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-faint);margin-top:10px;">切换规则：导航以具名状态切换，<span class="pill">state:change</span> 事件广播（便于守卫 / 埋点 / 转场动画）；loop 为跨态的「人的环」覆盖层。</p>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">5.5 事件触发流程（13 类交互事件）</h3>
+    <table class="ev-table">
+      <thead><tr><th>事件类型</th><th>触发时机</th><th>消费方示例</th></tr></thead>
+      <tbody>
+        <tr><td><span class="et">chat:send</span></td><td>用户发出消息</td><td>useServiceChat 建会话</td></tr>
+        <tr><td><span class="et">agent:step</span></td><td>四步 Agent 推进</td><td>星澜 thinking 表情 / 节点激活</td></tr>
+        <tr><td><span class="et">confirm:open</span></td><td>出现待确认</td><td>human's ring 暖金提示</td></tr>
+        <tr><td><span class="et">confirm:resolve</span></td><td>用户拍板</td><td>落库 / 继续推进</td></tr>
+        <tr><td><span class="et">state:change</span></td><td>导航切换</td><td>守卫 / 埋点 / 转场动画</td></tr>
+        <tr><td><span class="et">persona:mood</span></td><td>情绪推导变化</td><td>精灵表情 / 遥测</td></tr>
+        <tr><td><span class="et">ui:toast</span></td><td>轻提示</td><td>顶部 toast 渲染</td></tr>
+        <tr><td><span class="et">ui:success</span></td><td>成功回执</td><td>成功脉冲渲染</td></tr>
+        <tr><td><span class="et">ui:whisper</span></td><td>实时回复</td><td>低语条渲染</td></tr>
+        <tr><td><span class="et">system:ready</span></td><td>初始化完成</td><td>首屏问候</td></tr>
+        <tr><td><span class="et">system:error</span></td><td>异常</td><td>失败态 / 重试提示</td></tr>
+        <tr><td><span class="et">system:reconnect</span></td><td>重连</td><td>恢复在场</td></tr>
+        <tr><td><span class="et">memory:save / goal:add</span></td><td>记忆/目标落库</td><td>感知浮层更新</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:15px;font-weight:600;margin:22px 0 10px;">5.6 扩展方式</h3>
+    <div class="card">
+      <b style="font-size:13px;">新增一种关注方 = 只加一个订阅者</b>
+      <p style="font-size:12px;color:var(--ink-dim);margin-top:8px;">例如要新增「音效反馈」或「埋点上报」：只需 <span class="pill">bus.onType('ui:toast', ...)</span> 订阅对应事件，<strong>无需改动任何生产方代码</strong>。事件源（emit）保持稳定，系统随业务增长而清晰。</p>
+    </div>
+  </section>
+
+  <!-- 六、响应式与多端适配 -->
+  <section>
+    <div class="sec-tag">Responsive &amp; Multi-device</div>
+    <h2>六、响应式与多端适配</h2>
+    <p class="sec-desc">设计以桌面 Web 为基准，但须保证在平板与手机上仍可「在场、可对话、人的时刻可见」。以下为断点与适配规则。</p>
+    <div class="card">
+      <table>
+        <thead><tr><th>断点</th><th>布局</th><th>星澜与导航</th><th>关键约束</th></tr></thead>
+        <tbody>
+          <tr><td><b>≥1200</b></td><td>双栏（对话主 + 感知侧）</td><td>版本 A / B 任选</td><td>最大内容宽 1180px</td></tr>
+          <tr><td><b>768–1199</b></td><td>单栏，感知浮层叠于对话上</td><td>星澜居中或左置，字号↓</td><td>网格降 2 列</td></tr>
+          <tr><td><b>&lt;768</b></td><td>单栏竖排</td><td>三态导航转<b>底部 Tab</b>；星澜英雄区收窄</td><td>触控热区 ≥44px；expr 卡 2 列</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div class="card"><b style="font-size:13px;">移动端规则</b><ul style="list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:2;"><li>• 导航：底部 Tab（首页/记忆/目标），图标 + 文字。</li><li>• 星澜：英雄区高度压缩，核心 ≥48px 可见。</li><li>• 对话：气泡满宽 90%，输入区固定底部。</li><li>• 人的环：全屏暖金确认卡（modal）。</li></ul></div>
+      <div class="card"><b style="font-size:13px;">降级与性能</b><ul style="list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:2;"><li>• 窄屏隐藏非关键装饰（星云/外环）。</li><li>• 动效在低端机降帧或关闭 ripple。</li><li>• LCP &lt; 2.5s；长列表虚拟滚动。</li></ul></div>
+    </div>
+  </section>
+
+  <!-- 七、可访问性基线 -->
+  <section>
+    <div class="sec-tag">Accessibility</div>
+    <h2>七、可访问性基线（a11y）</h2>
+    <p class="sec-desc">深空暗色 + 低透明文字对可读性构成挑战，须以规范守住底线。以下为强制基线，实现须逐条满足。</p>
+    <div class="grid-2">
+      <div class="card">
+        <b style="font-size:13px;">对比度与字号</b>
+        <ul style="list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:2;">
+          <li>• 正文 ≥14px；辅助文字 ≥12px（<span class="tk">--ink-faint</span> 仅用于 ≥12px 标签）。</li>
+          <li>• 正文对比度 ≥4.5:1；大文本（≥18px）≥3:1。</li>
+          <li>• 冰青 <span class="tk">--core</span> 仅用于非纯文本关键点或配合文字。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <b style="font-size:13px;">焦点 · 动效 · 语义</b>
+        <ul style="list-style:none;margin-top:10px;font-size:12px;color:var(--ink-dim);line-height:2;">
+          <li>• 所有可交互元素可见焦点环（<span class="tk">--core</span> 描边）。</li>
+          <li>• <span class="tk">prefers-reduced-motion</span>：停呼吸/涟漪，核心静态常显（本稿已内置适配）。</li>
+          <li>• 星澜标识 <span class="tk">role="img"</span> + <span class="tk">aria-label</span>；状态变化经 live region 播报。</li>
+          <li>• 表情演示提供文本等价（如「等待你」标签）。</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">强制：未通过对比度与 reduced-motion 走查的页面，不得合入主分支。</p>
+  </section>
+
+  <!-- 八、验收标准 -->
+  <section>
+    <div class="sec-tag">Definition of Done</div>
+    <h2>八、验收标准（Definition of Done）</h2>
+    <p class="sec-desc">本设计稿的「达到预期」以以下可量化清单判定。全部勾选方视为 v1.2 落地完成。</p>
+    <div class="spec-grid">
+      <div class="card">
+        <b style="font-size:13px;">视觉与令牌</b>
+        <ul class="checklist">
+          <li>100% 颜色经令牌变量引用，零硬编码</li>
+          <li>暖金仅出现在 waiting/confirm/人的环</li>
+          <li>四步 Agent 冰青梯度，无第二强调色</li>
+          <li>圆角/间距/阴影符合令牌总表</li>
+        </ul>
+      </div>
+      <div class="card">
+        <b style="font-size:13px;">交互与状态</b>
+        <ul class="checklist">
+          <li>13 类事件全部接入事件总线</li>
+          <li>单一状态模型贯通 §3.3↔§4.3</li>
+          <li>人的环 非阻塞 + 可稍后 + 超时降级</li>
+          <li>空态/失败态有星澜专属表现</li>
+        </ul>
+      </div>
+      <div class="card">
+        <b style="font-size:13px;">响应式与性能</b>
+        <ul class="checklist">
+          <li>3 个断点布局正常，移动端底部 Tab</li>
+          <li>触控热区 ≥44px</li>
+          <li>动效 FPS≥60，LCP&lt;2.5s</li>
+          <li>reduced-motion 全量支持</li>
+        </ul>
+      </div>
+      <div class="card">
+        <b style="font-size:13px;">可访问性</b>
+        <ul class="checklist">
+          <li>正文对比度 ≥4.5:1</li>
+          <li>焦点可见、键盘可达</li>
+          <li>星澜状态读屏可播报</li>
+          <li>设计走查清单归档</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    星澜 XINGLAN · 形象重定义与功能扩展设计（凝光 NINGGUANG v1.2）｜本文件为<b>规范定稿</b>，角色定义、视觉标识、令牌总表、拟人化形象与交互架构将作为 React 实现的一比一规范。<br/>
+    <b>变更日志</b>　v1.0 初稿 → v1.1 新增 §4 拟人化形象 + §5 交互架构 → <b>v1.2（本次）</b>：① 修复 §5.3 暖金矛盾（success 改冰青）；② 定义并统一全部设计令牌（新增「设计令牌总表」+ <span class="tk">--space-1…5</span> / <span class="tk">--shadow-soft</span> 等）；③ 新增「设计原则」锚点；④ 新增 §3.7 人的环规格；⑤ 统一状态模型（§4.4，收敛 §3.3↔§4.3 双词汇）；⑥ §4 新增暖金「等待你」表情卡；⑦ 新增 §6 响应式 / §7 可访问性 / §8 验收标准(DoD)；⑧ 双文档令牌对齐为本表单一来源。<br/>
+    下一步：依据本稿逐节落地 React（nebula.css 注入令牌总表 → XinglanCore 标识与四步 Agent 冰青梯度 → 人的环 → 按 §2 实现 6 项扩展）。
+  </footer>
+
+</div>
+</body>
+</html>

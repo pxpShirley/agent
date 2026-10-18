@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  await p.addInitScript(() => localStorage.setItem('seenDemo', '1'));
+  await p.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });
+  await p.waitForSelector('.nx-shell', { timeout: 20000 });
+  await p.waitForTimeout(1200);
+  await p.locator('.composer-input').first().fill('帮我规划明天');
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(4000);
+  console.log('timeline =', await p.locator('.nx-tl').count());
+  console.log('older-toggle =', await p.locator('.nx-tl-older').count());
+  console.log('chat-events collapsed =', await p.locator('.nx-tl-ev.r-chat').count());
+  console.log('me-events =', await p.locator('.nx-tl-ev.r-me').count());
+  const txt = await p.locator('.nx-tl-older').textContent().catch(() => '-');
+  console.log('toggle text =', txt);
+  await p.screenshot({ path: '_shots/fix_home.png' });
+  await b.close();
+})();

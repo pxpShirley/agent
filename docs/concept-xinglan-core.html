@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>星澜 · 星核 Concept — 拟人化 AI 伴生体</title>
+<style>
+  :root{
+    --bg-0:#04050d; --bg-1:#0a0b1e; --bg-2:#0e1030;
+    --core-a:#5ef2ff; --core-b:#a974ff; --core-c:#7c5cff;
+    --planner:#5ef2ff; --researcher:#b388ff; --executor:#5dffc4; --critic:#ffcf6b;
+    --ink:#eaf0ff; --ink-2:#aab2e0; --ink-3:#727aa8;
+    --glass:rgba(255,255,255,0.055); --glass-b:rgba(150,170,255,0.16);
+    --good:#5dffc4; --warn:#ffcf6b; --bad:#ff7a9c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(1200px 800px at 18% 12%, rgba(124,92,255,0.22), transparent 60%),
+      radial-gradient(1000px 700px at 85% 88%, rgba(94,242,255,0.16), transparent 60%),
+      radial-gradient(900px 900px at 50% 50%, rgba(20,16,48,0.6), transparent 70%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1) 55%,var(--bg-2));
+    color:var(--ink); overflow:hidden;
+  }
+  #stars{position:fixed;inset:0;z-index:0}
+  .stage{position:relative;z-index:1;height:100vh;display:grid;grid-template-columns:1.05fr 0.95fr;gap:0}
+  @media (max-width:880px){.stage{grid-template-columns:1fr}}
+
+  /* ---------- 左：星核宇宙 ---------- */
+  .cosmos{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .core-wrap{position:relative;width:420px;height:420px;display:flex;align-items:center;justify-content:center}
+  .core{
+    position:relative;width:150px;height:150px;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%, #ffffff 0%, var(--core-a) 22%, var(--core-b) 60%, var(--core-c) 100%);
+    box-shadow:0 0 60px 12px rgba(124,92,255,0.45),0 0 140px 30px rgba(94,242,255,0.22);
+    animation:breathe 5.5s ease-in-out infinite;
+  }
+  .core::after{content:"";position:absolute;inset:-26px;border-radius:50%;
+    background:radial-gradient(circle, rgba(94,242,255,0.18), transparent 70%);animation:breathe 5.5s ease-in-out infinite reverse}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  .ring{position:absolute;border-radius:50%;border:1px solid rgba(150,170,255,0.18)}
+  .ring.r1{inset:-46px;animation:spin 26s linear infinite}
+  .ring.r2{inset:-86px;border-style:dashed;border-color:rgba(124,92,255,0.22);animation:spin 40s linear infinite reverse}
+  .ring.r3{inset:-126px;border-color:rgba(94,242,255,0.10);animation:spin 60s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .core-state{position:absolute;bottom:-58px;left:50%;transform:translateX(-50%);font-size:13px;color:var(--ink-2);letter-spacing:.18em;white-space:nowrap}
+  .core-state b{color:var(--ink);font-weight:600}
+
+  /* 环绕的子智能体节点 */
+  .node{position:absolute;top:50%;left:50%;width:84px;height:84px;margin:-42px;
+    border-radius:18px;background:var(--glass);border:1px solid var(--glass-b);
+    backdrop-filter:blur(10px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    transform-origin:center;transition:.4s;opacity:.55}
+  .node .dot{width:10px;height:10px;border-radius:50%;background:var(--ink-3);box-shadow:none;transition:.4s}
+  .node .nm{font-size:11px;color:var(--ink-2);letter-spacing:.05em}
+  .node.on{opacity:1;border-color:var(--c);box-shadow:0 0 26px -2px var(--c)}
+  .node.on .dot{background:var(--c);box-shadow:0 0 14px 2px var(--c)}
+  .node.on .nm{color:var(--ink)}
+  .n-planner{--c:var(--planner);transform:rotate(0deg) translateY(-200px) rotate(0deg)}
+  .n-researcher{--c:var(--researcher);transform:rotate(72deg) translateY(-200px)}
+  .n-executor{--c:var(--executor);transform:rotate(144deg) translateY(-200px)}
+  .n-critic{--c:var(--critic);transform:rotate(216deg) translateY(-200px)}
+  .n-orbit{transform:rotate(0deg)} /* 容器旋转由 JS 控制 */
+
+  /* mesh 连线 */
+  #mesh{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  #mesh line{stroke:rgba(150,170,255,0.25);stroke-width:1.2;stroke-dasharray:4 8;animation:flow 1.6s linear infinite;opacity:0;transition:.4s}
+  #mesh line.on{opacity:.9}
+  @keyframes flow{to{stroke-dashoffset:-24}}
+
+  /* ---------- 右：关系流 ---------- */
+  .rel{position:relative;padding:34px 30px 30px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+  .rel-head{display:flex;align-items:center;justify-content:space-between}
+  .rel-head .hi{font-size:15px;color:var(--ink-2)}
+  .rel-head .hi b{color:var(--ink);font-weight:600}
+  .pill{font-size:11px;color:var(--ink-3);border:1px solid var(--glass-b);border-radius:999px;padding:5px 11px;background:var(--glass);cursor:pointer;transition:.25s}
+  .pill:hover{color:var(--ink);border-color:var(--core-a)}
+
+  .whisper{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:14px;
+    background:linear-gradient(100deg,rgba(94,242,255,0.10),rgba(124,92,255,0.06));border:1px solid rgba(94,242,255,0.2);
+    font-size:13px;color:var(--ink);animation:fade .6s ease both}
+  .whisper .ic{width:8px;height:8px;border-radius:50%;background:var(--core-a);box-shadow:0 0 10px 2px var(--core-a);flex:none}
+
+  .stream{display:flex;flex-direction:column;gap:12px;flex:1;overflow:auto;padding-right:4px}
+  .msg{max-width:86%;padding:12px 15px;border-radius:16px;font-size:13.5px;line-height:1.6;animation:fade .5s ease both}
+  .msg.agent{align-self:flex-start;background:var(--glass);border:1px solid var(--glass-b);border-bottom-left-radius:6px;color:var(--ink)}
+  .msg.me{align-self:flex-end;background:linear-gradient(135deg,var(--core-b),var(--core-c));color:#fff;border-bottom-right-radius:6px}
+  .msg .small{display:block;font-size:11px;color:var(--ink-3);margin-bottom:4px}
+
+  .artifact{margin-top:4px;align-self:flex-start;max-width:92%;border-radius:18px;padding:14px 16px;
+    background:linear-gradient(135deg,rgba(124,92,255,0.14),rgba(94,242,255,0.08));
+    border:1px solid rgba(124,92,255,0.28);box-shadow:0 0 30px -8px rgba(124,92,255,0.4);animation:crystal .7s ease both}
+  .artifact .badge{font-size:10px;letter-spacing:.12em;color:var(--core-a);text-transform:uppercase}
+  .artifact .ti{font-size:14px;font-weight:600;margin:5px 0 8px}
+  .artifact .ln{font-size:12.5px;color:var(--ink-2);line-height:1.7}
+  .artifact .acts{display:flex;gap:8px;margin-top:10px}
+  .artifact .acts span{font-size:11px;color:var(--ink-3);border:1px solid var(--glass-b);border-radius:8px;padding:4px 9px}
+
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes crystal{from{opacity:0;transform:scale(.9) translateY(10px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+
+  .composer{margin-top:14px;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:999px;
+    background:var(--glass);border:1px solid var(--glass-b);backdrop-filter:blur(12px)}
+  .composer input{flex:1;background:none;border:none;outline:none;color:var(--ink);font-size:13.5px}
+  .composer input::placeholder{color:var(--ink-3)}
+  .composer .send{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--core-a),var(--core-b));
+    display:flex;align-items:center;justify-content:center;color:#04050d;font-size:16px;cursor:pointer;box-shadow:0 0 18px -2px var(--core-a)}
+
+  .tag{position:fixed;left:22px;bottom:18px;font-size:11px;color:var(--ink-3);letter-spacing:.1em;z-index:2}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="tag">CONCEPT · 星核伴生体范式（非最终实现）</div>
+<div class="stage">
+  <!-- 左：星核宇宙 -->
+  <section class="cosmos">
+    <svg id="mesh"><!-- lines injected by JS --></svg>
+    <div class="core-wrap" id="orbit">
+      <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+      <div class="core"></div>
+      <div class="core-state" id="coreState">星澜 · <b>静候中</b></div>
+      <div class="node n-planner" data-k="planner"><span class="dot"></span><span class="nm">规划</span></div>
+      <div class="node n-researcher" data-k="researcher"><span class="dot"></span><span class="nm">研究</span></div>
+      <div class="node n-executor" data-k="executor"><span class="dot"></span><span class="nm">执行</span></div>
+      <div class="node n-critic" data-k="critic"><span class="dot"></span><span class="nm">复核</span></div>
+    </div>
+  </section>
+
+  <!-- 右：关系流 -->
+  <section class="rel">
+    <div class="rel-head">
+      <div class="hi">晚上好，<b>lfhx</b> · 星澜一直在</div>
+      <div class="pill" id="govToggle">治理视角</div>
+    </div>
+
+    <div class="whisper"><span class="ic"></span>明天出差，已悄悄为你草拟好行李清单，空了看一眼</div>
+
+    <div class="stream" id="stream">
+      <div class="msg me">帮我把本周六理成一次杭州周边游，出张行程卡</div>
+      <div class="msg agent"><span class="small">星澜 · 规划</span>好，我来拆：先查目的地与天气，再排路线和餐厅，最后给你一份可编辑的行程卡。</div>
+      <div class="msg agent"><span class="small">星澜 · 研究</span>联网看了一圈，安吉竹海 + 小杭坑最适合轻松两天一夜，山路少、适合发呆。</div>
+      <div class="msg agent"><span class="small">星澜 · 执行</span>行程卡已生成，放在下面，随时能改。</div>
+      <div class="artifact">
+        <div class="badge">itinerary · 产物</div>
+        <div class="ti">杭州周末周边游 · 安吉竹海秘境</div>
+        <div class="ln">Day1 大竹海 → 民宿下午茶 · Day2 小杭坑拍照 → 带安吉白茶返程<br/>餐厅：茶人村 / 桂语山房 · 注意：山区早晚凉，带薄外套</div>
+        <div class="acts"><span>展开</span><span>编辑</span><span>导出 MD</span><span>分享</span></div>
+      </div>
+      <div class="msg agent"><span class="small">星澜 · 复核</span>提醒一句：Day1 别把大竹海和云上草原排一起，两地 40 公里山路，会累。已帮你改成就近的鲁家村。</div>
+    </div>
+
+    <div class="composer">
+      <input placeholder="和星澜说点什么，或把事交给它…" />
+      <div class="send">↑</div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* 星空 */
+const c=document.getElementById('stars'),x=c.getContext('2d');let st=[];
+function rs(){c.width=innerWidth;c.height=innerHeight;st=Array.from({length:90},()=>({x:Math.random()*c.width,y:Math.random()*c.height,r:Math.random()*1.4+.2,a:Math.random()*.6+.2,s:Math.random()*.02+.005}));}
+rs();addEventListener('resize',rs);
+(function loop(){x.clearRect(0,0,c.width,c.height);for(const p of st){p.y-=p.s;if(p.y<0)p.y=c.height;x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fillStyle='rgba(180,200,255,'+p.a+')';x.fill();}requestAnimationFrame(loop);})();
+
+/* mesh 连线（核心→四节点） */
+const mesh=document.getElementById('mesh'),orbit=document.getElementById('orbit');
+function drawMesh(){mesh.setAttribute('viewBox',`0 0 ${orbit.clientWidth} ${orbit.clientHeight}`);mesh.innerHTML='';
+  const cx=orbit.clientWidth/2,cy=orbit.clientHeight/2;
+  ['planner','researcher','executor','critic'].forEach(k=>{const n=orbit.querySelector('[data-k="'+k+'"]');
+    const r=n.getBoundingClientRect(),o=orbit.getBoundingClientRect();
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',cx);l.setAttribute('y1',cy);
+    l.setAttribute('x2',r.left-o.left+r.width/2);l.setAttribute('y2',r.top-o.top+r.height/2);
+    l.dataset.k=k;mesh.appendChild(l);});}
+drawMesh();addEventListener('resize',drawMesh);
+
+/* 演示：思考时序，让四个子智能体依次亮起 */
+const state=document.getElementById('coreState');
+function think(){const ks=['planner','researcher','executor','critic'];
+  state.innerHTML='星澜 · <b>思考中…</b>';
+  ks.forEach((k,i)=>setTimeout(()=>{
+    orbit.querySelector('[data-k="'+k+'"]').classList.add('on');
+    const l=mesh.querySelector('line[data-k="'+k+'"]');if(l)l.classList.add('on');
+    if(i===ks.length-1)setTimeout(()=>{state.innerHTML='星澜 · <b>静候中</b>';
+      ks.forEach(k=>{orbit.querySelector('[data-k="'+k+'"]').classList.remove('on');const l=mesh.querySelector('line[data-k="'+k+'"]');if(l)l.classList.remove('on');});},2600);
+  },i*900));}
+orbit.addEventListener('click',think);
+
+/* 治理视角：强调 mesh */
+document.getElementById('govToggle').addEventListener('click',function(){
+  const on=this.classList.toggle('on');
+  this.style.color=on?'var(--core-a)':'';
+  this.style.borderColor=on?'var(--core-a)':'';
+  mesh.querySelectorAll('line').forEach(l=>l.style.opacity=on?'.9':'');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖光 · Agent 架构总图（现状 + v3 演进）</title>
+<style>
+  :root{
+    --bg-0:#05080f; --bg-1:#0a1020; --bg-2:#0d1526;
+    --text:#e9f1ff; --muted:#8ba0c2; --muted-2:#6b7f9f;
+    --cyan:#6fd6ff; --teal:#5ee6c0; --azure:#7fb0ff;
+    --violet:#b48cff; --amber:#ffb86b; --gold:#f6c062;
+    --card:rgba(255,255,255,.028); --card-2:rgba(255,255,255,.05);
+    --line:rgba(140,175,225,.16); --radius:18px;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background:
+      radial-gradient(1100px 680px at 10% -8%, rgba(127,176,255,.14), transparent 60%),
+      radial-gradient(1000px 600px at 90% 6%, rgba(180,140,255,.12), transparent 62%),
+      radial-gradient(900px 560px at 50% 108%, rgba(94,230,192,.06), transparent 60%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1) 40%,var(--bg-2));
+    background-attachment:fixed;
+  }
+  .wrap{position:relative;z-index:1;max-width:1220px;margin:0 auto;padding:44px 24px 70px}
+  header{text-align:center;margin-bottom:26px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.16em;color:var(--teal);
+    padding:6px 14px;border-radius:999px;border:1px solid rgba(94,230,192,.3);background:rgba(94,230,192,.07)}
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  h1{font-size:36px;margin:16px 0 8px;font-weight:800;letter-spacing:.02em;
+     background:linear-gradient(92deg,#fff 8%,#bcd9ff 50%,#c9f5e4 96%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:14.5px;max-width:850px;margin:0 auto}
+
+  /* 图例 */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:24px 0 4px}
+  .lg{display:inline-flex;align-items:center;gap:8px;font-size:11.8px;color:var(--muted);
+      padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card)}
+  .sw{width:14px;height:10px;border-radius:3px}
+  .sw.solid{border:1.5px solid var(--cyan);background:rgba(111,214,255,.14)}
+  .sw.dash{border:1.5px dashed var(--violet);background:rgba(180,140,255,.10)}
+
+  /* 层 */
+  .layer{position:relative;border-radius:var(--radius);padding:19px 22px 21px;margin-top:17px;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05)}
+  .layer::before{content:"";position:absolute;left:0;top:0;height:3px;width:100%;border-radius:var(--radius) var(--radius) 0 0;
+    background:linear-gradient(90deg,var(--accent),transparent 78%)}
+  .layer.future{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 42%,transparent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 5%,transparent),rgba(255,255,255,.015))}
+  .lhead{display:flex;align-items:center;gap:12px;margin-bottom:3px;flex-wrap:wrap}
+  .lbadge{display:grid;place-items:center;width:35px;height:35px;border-radius:10px;flex-shrink:0;
+    background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);
+    color:var(--accent);font-weight:800;font-size:12.5px}
+  .ltitle{font-size:17.5px;font-weight:700}
+  .lpath{font-size:11.3px;color:var(--muted-2);font-family:ui-monospace,Consolas,monospace}
+  .tagnew{font-size:10.3px;font-weight:700;padding:3px 9px;border-radius:999px;color:#1a0f2e;
+    background:linear-gradient(140deg,#c9b2ff,#a98cff)}
+  .taglive{font-size:10.3px;font-weight:700;padding:3px 9px;border-radius:999px;color:var(--cyan);
+    border:1px solid color-mix(in srgb,var(--cyan) 36%,transparent);background:rgba(111,214,255,.08)}
+  .tagkeep{font-size:10.3px;font-weight:700;padding:3px 9px;border-radius:999px;color:var(--teal);
+    border:1px solid color-mix(in srgb,var(--teal) 36%,transparent);background:rgba(94,230,192,.08)}
+  .ldesc{color:var(--muted);font-size:12.7px;margin:2px 0 0}
+
+  .grid{display:grid;gap:11px;margin-top:13px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:940px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .box{border-radius:13px;padding:12px 14px;border:1px solid var(--line);background:rgba(255,255,255,.02)}
+  .box.future{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 40%,transparent);
+    background:color-mix(in srgb,var(--accent) 4%,transparent)}
+  .box .bt{font-size:13.1px;font-weight:700;color:var(--tcol,var(--text));display:flex;align-items:center;gap:7px}
+  .box .bd{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.55}
+  .code{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .chip{font-size:10.5px;padding:4px 9px;border-radius:999px;color:var(--tcol,var(--text));
+    border:1px solid color-mix(in srgb,var(--tcol,var(--accent)) 30%,transparent);
+    background:color-mix(in srgb,var(--tcol,var(--accent)) 10%,transparent);white-space:nowrap}
+
+  /* 演进对比条：现状 → 演进 */
+  .evo{margin-top:13px;border-radius:12px;border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);
+    background:color-mix(in srgb,var(--accent) 5%,transparent);padding:11px 14px}
+  .evo .er{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:11.8px}
+  .evo .now{color:var(--muted-2)}
+  .evo .now s{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--gold) 60%,transparent);color:var(--muted-2)}
+  .evo .arw{color:var(--violet);font-weight:700}
+  .evo .next{color:var(--text);font-weight:600}
+  .evo .lbl{font-size:10.5px;color:var(--accent);font-weight:700;letter-spacing:.05em;margin-bottom:6px}
+
+  /* 主循环 */
+  .loop-core{border-radius:var(--radius);padding:22px 20px;margin-top:17px;position:relative;
+    border:1px solid color-mix(in srgb,var(--cyan) 34%,var(--line));
+    background:radial-gradient(120% 130% at 50% 0%, rgba(111,214,255,.09), transparent 60%),linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 24px 60px -34px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+  .loop-title{text-align:center}
+  .loop-title .t{font-size:18px;font-weight:800}
+  .loop-title .s{font-size:12.4px;color:var(--muted);margin-top:4px}
+  .loop-row{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:15px}
+  .step{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border-radius:12px;
+    border:1px solid color-mix(in srgb,var(--cyan) 30%,var(--line));background:rgba(111,214,255,.07);white-space:nowrap}
+  .step b{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(140deg,#9fd8ff,#5aa8e0);color:#06121f;font-size:11.5px;font-weight:800}
+  .step .lbl{font-size:12.5px;font-weight:700}
+  .step .sm{display:block;font-size:9.8px;color:var(--muted);font-weight:400;font-family:ui-monospace,Consolas,monospace}
+  .sse{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:13px}
+  .ev{font-family:ui-monospace,Consolas,monospace;font-size:10.4px;padding:4px 10px;border-radius:7px;
+    color:var(--teal);border:1px solid color-mix(in srgb,var(--teal) 30%,transparent);background:color-mix(in srgb,var(--teal) 9%,transparent)}
+  .flow{text-align:center;color:var(--muted-2);font-size:16px;margin:4px 0}
+
+  /* 路线图 */
+  .road{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:15px}
+  @media(max-width:940px){.road{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.road{grid-template-columns:1fr}}
+  .ph{position:relative;border-radius:14px;padding:14px 15px;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--card-2),var(--card))}
+  .ph::after{content:"";position:absolute;left:15px;right:15px;top:0;height:3px;border-radius:0 0 3px 3px;
+    background:linear-gradient(90deg,var(--accent),transparent)}
+  .ph .pn{font-size:11.6px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+  .ph .pt{font-size:13px;font-weight:700;margin:4px 0 5px}
+  .ph ul{margin:8px 0 0;padding-left:16px;font-size:11.4px;color:var(--muted)}
+  .ph li{margin-bottom:3px}
+  .no{margin-top:20px;border-radius:14px;padding:14px 17px;border:1px dashed var(--line);
+    background:rgba(255,255,255,.015);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .no .t{font-size:12.4px;font-weight:700;color:var(--muted)}
+  .no .items{display:flex;flex-wrap:wrap;gap:7px}
+  .no .items span{font-size:11px;padding:4px 11px;border-radius:999px;color:var(--muted-2);border:1px dashed var(--line)}
+  footer{margin-top:36px;text-align:center;color:var(--muted-2);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker"><span class="dot"></span>AGENT ARCHITECTURE · CURRENT + EVOLUTION</div>
+    <h1>栖光 · Agent 架构总图</h1>
+    <p class="sub">现状与演进合看：实线 = 当前已落地，虚线 = v3 待建。每处标注「现在 → 要变成什么」，对照 <code>docs/ARCHITECTURE-v3.md</code>。本期不含鉴权与沙箱。</p>
+  </header>
+
+  <div class="legend">
+    <span class="lg"><i class="sw solid"></i>现状已落地</span>
+    <span class="lg"><i class="sw dash"></i>v3 待建</span>
+    <span class="lg">底部 L0 主循环保持不变</span>
+  </div>
+
+  <!-- ===== L4 Evals & Trace ===== -->
+  <section class="layer future" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">L4</div>
+      <div><div class="ltitle">Evals &amp; Trace · 评估与可观测</div><div class="lpath">agent_spans · evals/ · npm run eval</div></div>
+      <span class="tagnew">v3 待建 · P0</span></div>
+    <p class="ldesc">一切改动（prompt / 模型 / 上下文）的安全网。<b>红线：trace 只读观测，任何情况下不得回灌模型上下文</b>（会自我污染）。</p>
+    <div class="grid g2">
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🔍 Trace 视图</div>
+        <div class="bd">新增 <code>agent_spans</code> 表，主循环每步落 span（iter/kind/name/input/output/ms），治理面板可展开每步耗时与入参出参。</div>
+        <div class="chips"><span class="chip">agent_spans</span><span class="chip">治理面板 trace</span><span class="chip">只读</span></div></div>
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🧪 Evals 回归网</div>
+        <div class="bd">判定<b>不用 LLM 打分</b>，用可复现规则：<code>mustInclude / mustNotInclude / toolCalled / noHallucinate</code>。</div>
+        <div class="chips"><span class="chip">npm run eval</span><span class="chip">多轮指代补全</span><span class="chip">婉拒→放歌</span><span class="chip">空泛反问防线</span><span class="chip">产物读取必调工具</span></div></div>
+    </div>
+    <div class="evo" style="--accent:var(--violet)">
+      <div class="lbl">演进</div>
+      <div class="er">
+        <span class="now">轨迹：<s>agent_runs 只记一轮结果，看不到过程</s></span>
+        <span class="arw">→</span>
+        <span class="next">每步 span + trace 视图（可观测）</span>
+      </div>
+      <div class="er" style="margin-top:6px">
+        <span class="now">质量：<s>无回归网，改 prompt 靠感觉</s></span>
+        <span class="arw">→</span>
+        <span class="next">evals 一条命令判断变好/变坏</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow">▲ 评估结果反哺下面各层调优</div>
+
+  <!-- ===== L3 Skills ===== -->
+  <section class="layer future" style="--accent:var(--amber)">
+    <div class="lhead"><div class="lbadge">L3</div>
+      <div><div class="ltitle">Skills · 能力包化</div><div class="lpath">server/skills/types.ts · Skill{ name, description, loadInstructions, tools }</div></div>
+      <span class="tagnew">v3 待建 · P3</span></div>
+    <p class="ldesc">把"某一类任务的做法"抽成可插拔包。提示词只列 name+description 省 token，命中后才展开详细做法。首批候选：睡眠作息 / 行程规划 / 产物整理。</p>
+    <div class="evo" style="--accent:var(--amber)">
+      <div class="lbl">演进</div>
+      <div class="er">
+        <span class="now">能力：<s>硬编码在 registry + 系统提示词里，加一个域要改多处</s></span>
+        <span class="arw">→</span>
+        <span class="next">Skill 包，按需展开，新增能力不改主循环</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow">▲ 为主循环提供可插拔能力</div>
+
+  <!-- ===== L1 Context Engine ===== -->
+  <section class="layer future" style="--accent:var(--teal)">
+    <div class="lhead"><div class="lbadge">L1</div>
+      <div><div class="ltitle">Context Engine · 上下文引擎</div><div class="lpath">server/context/{budget,summarize,retrieval,assemble}.ts</div></div>
+      <span class="tagnew">v3 待建 · P1 最高优先</span></div>
+    <p class="ldesc"><b>铁律：<code>assembleContext()</code> 是主循环获取上下文的唯一出口</b>；长度由模型 token 窗口动态分配，禁止魔法数字。</p>
+    <div class="grid g4">
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">① Token 预算器</div>
+        <div class="bd"><code>allocate()</code> 把窗口切给 system/memory/tools/history；<code>resolveWindow(model)</code> 读模型上限。</div>
+        <div class="chips"><span class="chip">budget.ts</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">② 滚动摘要</div>
+        <div class="bd"><code>compactOldTurns()</code> 保留近 K 轮原文，更早的异步压成摘要（只压事实结论，<b>不删 DB</b>）。</div>
+        <div class="chips"><span class="chip">summarize.ts</span><span class="chip">异步·幂等</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">③ 装配器</div>
+        <div class="bd"><code>assembleContext()</code> 唯一出口；迁移时保留旧 <code>buildHistory</code> 一版作 fallback。</div>
+        <div class="chips"><span class="chip">assemble.ts</span><span class="chip">灰度可回退</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">④ 记忆召回钩子</div>
+        <div class="bd">从"取最近12条注入"改相关性召回（见 L2），装配器在此注入，预留 embedding 接口。</div>
+        <div class="chips"><span class="chip">retrieval.ts</span><span class="chip">可换实现</span></div></div>
+    </div>
+    <div class="evo" style="--accent:var(--teal)">
+      <div class="lbl">演进</div>
+      <div class="er">
+        <span class="now">上下文：<s>buildHistory 硬截断（12轮 / 6000字符）</s></span>
+        <span class="arw">→</span>
+        <span class="next">token 预算驱动的装配器，长会话不丢早期</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== L2 Memory ===== -->
+  <section class="layer" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">L2</div>
+      <div><div class="ltitle">Memory · 分层与检索</div><div class="lpath">memories / messages / artifacts / tracks / agent_runs · recallForPrompt()</div></div>
+      <span class="taglive">部分已落地</span><span class="tagnew">检索化待建</span></div>
+    <p class="ldesc">四层记忆各司其职：会话记忆进上下文、长期画像按相关性召回、项目事实由工具按需读、运行轨迹<b>只做可观测不进上下文</b>。</p>
+    <div class="grid g4">
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">会话记忆<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">messages 表；现状按预算内滚动摘要 + 近轮原文（摘要部分待建）。</div>
+        <div class="chips"><span class="chip">messages</span></div></div>
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">长期画像 · 检索化<span class="tagnew" style="margin-left:auto">待建</span></div>
+        <div class="bd"><code>recallForPrompt()</code> 相关性打分：关键词*.6 + recency*.3 + kind*.1；无匹配回退"取最近 N 条"。</div>
+        <div class="chips"><span class="chip">memories</span><span class="chip">normKey 去重</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">项目事实<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">artifacts / tracks，<b>不注入上下文</b>，由 open_artifact 等工具按需读取。</div>
+        <div class="chips"><span class="chip">artifacts</span><span class="chip">tracks</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">运行轨迹<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">agent_runs 已记录 tools_used/outcome/model；v3 补 span 后接 trace 视图。</div>
+        <div class="chips"><span class="chip">agent_runs</span><span class="chip">不进上下文</span></div></div>
+    </div>
+    <div class="evo" style="--accent:var(--violet)">
+      <div class="lbl">演进</div>
+      <div class="er">
+        <span class="now">召回：<s>取最近 12 条按时间注入，与当前问题相关性为零</s></span>
+        <span class="arw">→</span>
+        <span class="next">相关性打分召回，无关记忆不硬塞</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow">▼ 装配后的上下文喂给主循环</div>
+
+  <!-- ===== L0 主循环（不变） ===== -->
+  <section class="loop-core">
+    <div class="loop-title">
+      <div class="t">🤖 L0 · Agent 主循环　<span class="tagkeep">保持不动</span></div>
+      <div class="s">标准 ReAct 形态，限 6 轮（<code>MAX_AGENT_ITERATIONS=6</code>）；工具执行带 timeout+retry；6s 客户端看门狗兜底</div>
+    </div>
+    <div class="loop-row">
+      <span class="step"><b>1</b><span class="lbl">组装上下文<span class="sm">assembleContext v3</span></span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>2</b><span class="lbl">思考·流式吐字<span class="sm">compat stream deepseek</span></span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>3</b><span class="lbl">选择工具<span class="sm">activeToolDefs</span></span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>4</b><span class="lbl">执行工具<span class="sm">execTool 超时+重试</span></span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>5</b><span class="lbl">接收观察<span class="sm">SSE tool_result</span></span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>6</b><span class="lbl">收敛判断<span class="sm">done / 落库</span></span></span>
+    </div>
+    <div class="sse">
+      <span class="ev">text</span><span class="ev">tool</span><span class="ev">tool_result</span><span class="ev">artifact</span>
+      <span class="ev">ask_user</span><span class="ev">music</span><span class="ev">notice</span><span class="ev">done</span>
+    </div>
+  </section>
+
+  <!-- ===== 能力与执行 ===== -->
+  <section class="layer" style="--accent:var(--azure)">
+    <div class="lhead"><div class="lbadge">🧰</div>
+      <div><div class="ltitle">能力装配 · 工具注册表</div><div class="lpath">server/tools/registry.ts · 一处定义，下发/执行/提示词三处同源派生</div></div>
+      <span class="taglive">已落地</span></div>
+    <p class="ldesc">13 个工具按域分组；提示词里的"能力清单"与实际下发的 tools 数组同源，并按数据感知裁剪（无记忆不给 recall、无待办不给 get_schedule）。</p>
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--azure)"><div class="bt">🧠 记忆 · 节律</div>
+        <div class="chips"><span class="chip">recall_memory</span><span class="chip">save_memory</span><span class="chip">set_reminder</span><span class="chip">check_reminder_step</span><span class="chip">get_schedule</span><span class="chip">checkin_mood</span></div></div>
+      <div class="box" style="--tcol:var(--azure)"><div class="bt">📦 产物 · 🎵 音乐</div>
+        <div class="chips"><span class="chip">open_artifact</span><span class="chip">create_artifact</span><span class="chip">update_artifact</span><span class="chip">play_music</span><span class="chip">control_music</span></div></div>
+      <div class="box" style="--tcol:var(--azure)"><div class="bt">🙋 交互 · 🌐 联网检索</div>
+        <div class="bd"><code>ask_user</code> 落人的环；<code>web_lookup</code> 走独立搜索源 Brave→Tavily→SerpAPI→Bocha→DashScope→DDG，不靠 LLM。</div>
+        <div class="chips"><span class="chip">ask_user</span><span class="chip">web_lookup</span></div></div>
+    </div>
+  </section>
+
+  <section class="layer" style="--accent:var(--teal)">
+    <div class="lhead"><div class="lbadge">⚙</div>
+      <div><div class="ltitle">服务端 · 单进程 + 主动调度</div><div class="lpath">server/index.ts（装配）· routes/* · scheduler.ts</div></div>
+      <span class="taglive">已落地</span></div>
+    <p class="ldesc">一个 Express 进程同源托管前端与 API；调度器每 60s 主动生成卡片。</p>
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--teal)"><div class="bt">LLM · DeepSeek 优先</div>
+        <div class="bd"><code>llm/bailian.ts</code> 实为 OpenAI 兼容双供应商适配层，DeepSeek 优先、否则百炼；<code>reasoner</code> 不支持 function call 自动降级。</div>
+        <div class="chips"><span class="chip">deepseek-chat</span><span class="chip">百炼 fallback</span></div></div>
+      <div class="box" style="--tcol:var(--teal)"><div class="bt">路由域 · 主动调度</div>
+        <div class="chips"><span class="chip">chat(SSE)</span><span class="chip">context</span><span class="chip">userData</span><span class="chip">proactive</span><span class="chip">artifacts</span><span class="chip">sessions</span><span class="chip">music</span><span class="chip">meta</span><span class="chip">admin</span><span class="chip">scheduler 60s</span></div></div>
+      <div class="box" style="--tcol:var(--teal)"><div class="bt">音乐流</div>
+        <div class="bd"><code>/api/music/stream/:id</code> 支持 Range 206；曲库只存路径+元数据，音频留原处；工具选曲经 <code>setMusicAction</code> 回流客户端。</div>
+        <div class="chips"><span class="chip">Range 206</span><span class="chip">xl-music 事件桥</span></div></div>
+    </div>
+  </section>
+
+  <!-- ===== 路线图 ===== -->
+  <section class="layer" style="--accent:var(--cyan)">
+    <div class="lhead"><div class="lbadge">🗓</div>
+      <div><div class="ltitle">落地顺序 · 每阶段独立可验证</div><div class="lpath">强制：npm test + npm run eval 全绿且对照 evals 无退化</div></div></div>
+    <div class="road">
+      <div class="ph" style="--accent:var(--violet)"><div class="pn">P0 · 安全网</div><div class="pt">Trace + Evals</div>
+        <ul><li>agent_spans 落库 + 面板视图</li><li>evals 骨架 + 4 条用例</li><li>npm run eval</li></ul></div>
+      <div class="ph" style="--accent:var(--teal)"><div class="pn">P1 · 上下文</div><div class="pt">Context Engine</div>
+        <ul><li>budget.ts + assemble.ts</li><li>历史长度由预算算</li><li>记忆检索化 recallForPrompt</li></ul></div>
+      <div class="ph" style="--accent:var(--teal)"><div class="pn">P2 · 长程</div><div class="pt">滚动摘要</div>
+        <ul><li>compactOldTurns</li><li>近 K 轮原文 + 更早摘要</li><li>异步·幂等·不删 DB</li></ul></div>
+      <div class="ph" style="--accent:var(--amber)"><div class="pn">P3 · 扩展</div><div class="pt">Skills 包化</div>
+        <ul><li>Skill 类型定义</li><li>先抽 1~2 个域试点</li><li>不改主循环</li></ul></div>
+    </div>
+    <div class="no">
+      <span class="t">本期明确不做</span>
+      <div class="items"><span>鉴权 / 多用户隔离（上云前必补）</span><span>沙箱执行提权（自用单机）</span><span>多 Agent 全铺开（字段已预留）</span></div>
+    </div>
+  </section>
+
+  <footer>栖光 · 星澜 · Agent 架构总图 · 依据 docs/agent-architecture.html（现状）+ docs/ARCHITECTURE-v3.md（演进）合并绘制</footer>
+</div>
+</body>
+</html>

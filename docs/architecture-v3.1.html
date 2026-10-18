@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖光 · 架构演进图 v3.1</title>
+<style>
+  :root{
+    --bg-0:#05080f; --bg-1:#0a1020; --bg-2:#0d1526;
+    --text:#e9f1ff; --muted:#8ba0c2; --muted-2:#7d90ad;
+    --cyan:#6fd6ff; --teal:#5ee6c0; --azure:#7fb0ff;
+    --violet:#b48cff; --amber:#ffb86b; --gold:#f6c062; --red:#ff9292;
+    --card:rgba(255,255,255,.028); --card-2:rgba(255,255,255,.05);
+    --line:rgba(140,175,225,.16); --radius:18px;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background:
+      radial-gradient(1100px 680px at 10% -8%, rgba(127,176,255,.14), transparent 60%),
+      radial-gradient(1000px 600px at 90% 6%, rgba(180,140,255,.12), transparent 62%),
+      radial-gradient(900px 560px at 50% 108%, rgba(94,230,192,.06), transparent 60%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1) 40%,var(--bg-2));
+    background-attachment:fixed;
+  }
+  .wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:44px 24px 70px}
+  header{text-align:center;margin-bottom:28px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.18em;color:var(--violet);
+    padding:6px 14px;border-radius:999px;border:1px solid rgba(180,140,255,.3);background:rgba(180,140,255,.07)}
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px var(--violet)}
+  h1{font-size:37px;margin:16px 0 8px;font-weight:800;letter-spacing:.02em;
+     background:linear-gradient(92deg,#fff 8%,#bcd9ff 50%,#d3c0ff 96%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:14.5px;max-width:880px;margin:0 auto}
+  .sub code{color:var(--cyan)}
+
+  /* 图例 */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:24px 0 6px}
+  .lg{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+      padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card)}
+  .sw{width:14px;height:10px;border-radius:3px}
+  .sw.solid{border:1.5px solid var(--cyan);background:rgba(111,214,255,.14)}
+  .sw.dash{border:1.5px dashed var(--violet);background:rgba(180,140,255,.10)}
+  .rev{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;
+    color:#241701;background:linear-gradient(140deg,#ffd98a,#f6c062);letter-spacing:.04em;white-space:nowrap}
+  .rv{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;
+    color:#241701;background:linear-gradient(140deg,#ffd98a,#f6c062);letter-spacing:.04em;white-space:nowrap;margin-left:auto}
+
+  /* 层 */
+  .layer{position:relative;border-radius:var(--radius);padding:20px 22px 22px;margin-top:18px;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05)}
+  .layer::before{content:"";position:absolute;left:0;top:0;height:3px;width:100%;border-radius:var(--radius) var(--radius) 0 0;
+    background:linear-gradient(90deg,var(--accent),transparent 78%)}
+  .layer.future{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 42%,transparent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 5%,transparent),rgba(255,255,255,.015))}
+  .lhead{display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap}
+  .lbadge{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;flex-shrink:0;
+    background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);
+    color:var(--accent);font-weight:800;font-size:13px}
+  .ltitle{font-size:18px;font-weight:700}
+  .lpath{font-size:11.5px;color:var(--muted-2);font-family:ui-monospace,Consolas,monospace}
+  .tagnew{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;color:#1a0f2e;
+    background:linear-gradient(140deg,#c9b2ff,#a98cff);letter-spacing:.04em}
+  .taglive{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;color:var(--cyan);
+    border:1px solid color-mix(in srgb,var(--cyan) 36%,transparent);background:rgba(111,214,255,.08)}
+  .ldesc{color:var(--muted);font-size:12.8px;margin:2px 0 0}
+  .ldesc b{color:var(--text)}
+
+  .grid{display:grid;gap:12px;margin-top:14px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:920px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .box{border-radius:13px;padding:13px 15px;border:1px solid var(--line);background:rgba(255,255,255,.02)}
+  .box.future{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 40%,transparent);
+    background:color-mix(in srgb,var(--accent) 4%,transparent)}
+  .box .bt{font-size:13.3px;font-weight:700;color:var(--tcol,var(--text));display:flex;align-items:center;gap:7px}
+  .box .bd{font-size:11.6px;color:var(--muted);margin-top:4px;line-height:1.55}
+  .box .bd b{color:var(--text)}
+  .code{font-family:ui-monospace,Consolas,monospace;font-size:10.6px;color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{font-size:10.6px;padding:4px 10px;border-radius:999px;color:var(--tcol,var(--text));
+    border:1px solid color-mix(in srgb,var(--tcol,var(--accent)) 30%,transparent);
+    background:color-mix(in srgb,var(--tcol,var(--accent)) 10%,transparent);white-space:nowrap}
+
+  /* 主循环（保持不变，高亮） */
+  .loop-core{border-radius:var(--radius);padding:22px 20px;margin-top:18px;position:relative;
+    border:1px solid color-mix(in srgb,var(--cyan) 34%,var(--line));
+    background:radial-gradient(120% 130% at 50% 0%, rgba(111,214,255,.09), transparent 60%),linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 24px 60px -34px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+  .loop-title{text-align:center}
+  .loop-title .t{font-size:18px;font-weight:800}
+  .loop-title .s{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .loop-title .s code{color:var(--cyan)}
+  .loop-row{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:16px}
+  .step{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border-radius:12px;
+    border:1px solid color-mix(in srgb,var(--cyan) 30%,var(--line));background:rgba(111,214,255,.07);white-space:nowrap}
+  .step b{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(140deg,#9fd8ff,#5aa8e0);color:#06121f;font-size:11.5px;font-weight:800}
+  .step .lbl{font-size:12.5px;font-weight:700}
+  .sse{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:14px}
+  .sse .ev{font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;
+    color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)}
+  .sse .ev.route{color:var(--muted);border-color:var(--line);background:rgba(255,255,255,.03)}
+  .sse-note{text-align:center;font-size:11px;color:var(--muted-2);margin-top:8px}
+
+  .flow{text-align:center;color:var(--muted-2);font-size:17px;margin:4px 0}
+
+  /* 已做对 */
+  .evo{margin-top:14px;border-radius:13px;padding:12px 15px;border:1px dashed color-mix(in srgb,var(--accent) 40%,transparent);
+    background:color-mix(in srgb,var(--accent) 4%,transparent)}
+  .evo .lbl{font-size:11.5px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+  .evo .er{margin-top:6px;display:flex;flex-wrap:wrap;gap:8px}
+  .evo .next{font-size:11.3px;color:var(--muted);border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:rgba(255,255,255,.02)}
+  .evo .next code{font-family:ui-monospace,Consolas,monospace;color:var(--accent);font-size:10.6px}
+
+  /* 事实基线 */
+  .facts{display:grid;gap:8px;margin-top:14px}
+  .fact{display:grid;grid-template-columns:1.5fr 1.1fr 92px;gap:10px;align-items:start;
+    font-size:11.6px;padding:9px 13px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.02)}
+  @media(max-width:920px){.fact{grid-template-columns:1fr}}
+  .fact .q{color:var(--text)}
+  .fact .src{font-family:ui-monospace,Consolas,monospace;font-size:10.4px;color:var(--azure);word-break:break-all}
+  .fact .v{font-weight:800;font-size:11px}
+  .ok{color:var(--teal)} .warn{color:var(--amber)} .bad{color:var(--red)}
+
+  /* 路线图 */
+  .road{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+  @media(max-width:920px){.road{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.road{grid-template-columns:1fr}}
+  .ph{position:relative;border-radius:14px;padding:15px 16px;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--card-2),var(--card))}
+  .ph::after{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 3px 3px;
+    background:linear-gradient(90deg,var(--accent),transparent)}
+  .ph .pn{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+  .ph .pt{font-size:13.2px;font-weight:700;margin:4px 0 6px}
+  .ph .pd{font-size:11.5px;color:var(--muted);line-height:1.55}
+  .ph .gatelbl{font-size:10.4px;font-weight:800;color:var(--accent);letter-spacing:.08em;margin-top:9px}
+  .ph ul{margin:5px 0 0;padding-left:16px;font-size:11.5px;color:var(--muted)}
+  .ph li{margin-bottom:3px}
+
+  .no{margin-top:22px;border-radius:14px;padding:15px 18px;border:1px dashed var(--line);
+    background:rgba(255,255,255,.015);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .no .t{font-size:12.5px;font-weight:700;color:var(--muted)}
+  .no .items{display:flex;flex-wrap:wrap;gap:7px}
+  .no .items span{font-size:11px;padding:4px 11px;border-radius:999px;color:var(--muted-2);
+    border:1px dashed var(--line)}
+  footer{margin-top:38px;text-align:center;color:var(--muted-2);font-size:11.5px}
+  footer b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker"><span class="dot"></span>ARCHITECTURE v3.1 · EVOLUTION BLUEPRINT</div>
+    <h1>栖光 · 架构演进图 v3.1</h1>
+    <p class="sub">唯一真相源：<code>docs/ARCHITECTURE-v3.md</code>（v3.1 修订）。分层编号以其 §2 图为准 ——
+      <b>L4 = Evals&amp;Trace、L3 = Skills</b>（md §5/§6 标题编号与此冲突，v3.1 统一）。
+      本图所有「现状」断言均附源码行号，见 <b>事实基线</b>；逐条修订详见 <code>docs/ARCHITECTURE-v3.1-addendum.md</code>。</p>
+  </header>
+
+  <div class="legend">
+    <span class="lg"><i class="sw solid"></i>现状已落地</span>
+    <span class="lg"><i class="sw dash"></i>v3.1 待建</span>
+    <span class="lg"><span class="rev">修订</span>相对 v3 变更点</span>
+  </div>
+
+  <!-- ===== v3.1 改了什么 ===== -->
+  <section class="layer" style="--accent:var(--gold)">
+    <div class="lhead"><div class="lbadge">✎</div>
+      <div><div class="ltitle">v3.1 相对 v3 的八处修订</div>
+        <div class="lpath">依据：源码逐条核对（行号已复核，2026-10-07）</div></div></div>
+    <div class="grid g2">
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">① 事实基线纠偏</div>
+        <div class="bd">客户端看门狗写的是 6s，实测 <b>150s</b>；<code>MAX_AGENT_ITERATIONS</code> 在 <code>agent.ts</code> 不在 <code>bailian.ts</code>；超时实为 <b>4 层</b>（120s / 150s / 180s / 工具 15s×3），"180s 总超时"被夸大。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">② 优先级重排</div>
+        <div class="bd">轮内预算守卫升为 P1 首位；并行工具从"最高优先"降为 <b>P2</b>，并加前置条件（<code>Tool</code> 必须先声明 <code>sideEffect</code>）。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">③ P0 补第 0 步</div>
+        <div class="bd">当前目录<b>不是 git 仓库</b>（无 <code>.git</code>、无 CI）。"保留旧函数一版可切回""改前改后灰度对比"缺版本依托 → 先 <code>git init</code> + 基线提交。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">④ P0 补 token 采集</div>
+        <div class="bd">全链路不解析 <code>usage</code>、<code>agent_runs</code> 无 token 列 → 预算器没有校准数据源，所谓"消灭魔法数字"只会把 6000 换成 1.6 系数。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">⑤ 接口定死</div>
+        <div class="bd">装配器拆成 <code>assembleContext()</code>（turn 级·同步·唯一出口）与 <code>guardBudget()</code>（iteration 级）；摘要异步 → 读旧摘要 + <code>compacted</code> 标志。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">⑥ 旁路收口</div>
+        <div class="bd"><code>tryFindArtifactContent()</code> 把产物全文直拼 user 消息 —— 与"唯一出口"铁律冲突，必须并入装配器或显式豁免。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">⑦ 记忆去重纠偏</div>
+        <div class="bd"><code>normKey</code> 只存在于前端；服务端 <code>saveMemory</code> 是<b>精确 key 覆盖</b>。需要新增服务端归一函数，不是"复用"。</div></div>
+      <div class="box" style="--tcol:var(--gold)"><div class="bt">⑧ evals 分层 + 口径修复</div>
+        <div class="bd">用例按"验证哪一层"分组并补 3 条；<code>agent_runs.outcome</code> 现<b>恒为 <code>'handled'</code></b>，不先修，L4 的口径就是脏的。</div></div>
+    </div>
+  </section>
+
+  <!-- ===== L4 Evals & Trace ===== -->
+  <section class="layer future" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">L4</div>
+      <div><div class="ltitle">Evals &amp; Trace · 评估与可观测</div><div class="lpath">agent_spans 表 · evals/ 目录 · npm run eval</div></div>
+      <span class="tagnew">待建 · P0 优先</span></div>
+    <p class="ldesc">一切改动（prompt / 模型 / 上下文策略）的安全网。<b>红线：trace 只读观测，任何情况下不得回灌模型上下文</b>（会自我污染）。
+      <span class="rev">修订</span> 治理面板<b>已有"轮级活动流"</b>（消费 <code>agent_runs</code>），缺的是"步级 trace"，不是"无视图"。</p>
+    <div class="grid g2">
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🔍 Trace 视图<span class="rv">修订</span></div>
+        <div class="bd"><code>agent_runs</code> 只记一轮结果，看不到"为什么调这个工具"。新增 <code>agent_spans</code>，主循环每步落 span（iter/kind/name/input/output/ms），
+          <b>并顺带落 <code>tokens</code></b>（P0 的 usage 采集也从这里出）与真实 <code>outcome</code>。治理面板可展开每步耗时与入参出参。</div>
+        <div class="chips"><span class="chip">agent_spans</span><span class="chip">tokens 列</span><span class="chip">步级视图</span><span class="chip">只读</span></div></div>
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🧪 Evals 回归网<span class="rv">修订</span></div>
+        <div class="bd">判定<b>不用 LLM 打分</b>，用可复现规则。v3.1 起用例<b>按"验证哪一层"分组</b>（L0 循环 / L1 上下文 / L2 记忆 / 提示词行为 / 兜底路径），
+          否则改上下文时等于裸奔：v3 的 4 条里只有"产物读取"沾 L0。</div>
+        <div class="chips"><span class="chip">npm run eval</span><span class="chip">E1–E7</span><span class="chip">maxTokens</span><span class="chip">eventSeen</span><span class="chip">outcomeIs</span></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🔒 数据面约束<span class="rv">新增</span></div>
+        <div class="bd">span 的 <code>input/output</code> 会原样存下用户原文、<code>web_lookup</code> 查询词、邮件内容 —— 必须内置 <code>redactSpan()</code>（截断 + 掩码 key/邮箱/手机号），
+          并给 <code>agent_spans</code> 定<b>保留期 + 清理任务</b>。本期不做鉴权可以，但不能默认"新建的数据面不用管"。</div>
+        <div class="chips"><span class="chip">脱敏</span><span class="chip">保留期 30d</span><span class="chip">批量异步写</span></div></div>
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">📏 观测口径<span class="rv">新增</span></div>
+        <div class="bd"><code>outcome</code> 现在恒为 <code>'handled'</code>（出错、兜底也一样写），先改成 <code>handled / fallback / error</code>；
+          <code>done.fallback</code> 是现成的质量信号，纳入统计口径（兜底率应作为 P1 的对照指标）。</div>
+        <div class="chips"><span class="chip">outcome 真实化</span><span class="chip">兜底率</span></div></div>
+    </div>
+  </section>
+
+  <div class="flow">▲ 评估结果反哺下面各层调优</div>
+
+  <!-- ===== L3 Skills ===== -->
+  <section class="layer future" style="--accent:var(--amber)">
+    <div class="lhead"><div class="lbadge">L3</div>
+      <div><div class="ltitle">Skills · 能力包化</div><div class="lpath">server/skills/types.ts · Skill{ name, description, loadInstructions }</div></div>
+      <span class="tagnew">待建 · P3</span></div>
+    <p class="ldesc">把"某一类任务的做法"抽成可插拔包。提示词只列 name+description 省 token，命中后才展开详细做法。首批候选：睡眠作息 / 行程规划 / 产物整理。</p>
+    <div class="grid g3">
+      <div class="box future" style="--tcol:var(--amber)"><div class="bt">按需加载</div>
+        <div class="bd">说明书是<b>代码</b>（沿用单进程部署），非运行时文件；命中才 <code>loadInstructions()</code>。</div>
+        <div class="chips"><span class="chip">省 token</span></div></div>
+      <div class="box future" style="--tcol:var(--amber)"><div class="bt">与注册表的关系<span class="rv">修订</span></div>
+        <div class="bd">v3 的 <code>Skill.tools?: string[]</code> 会让"工具清单"出现<b>第二真相源</b>（现有清单严格由 <code>activeToolDefs()</code> 派生，提示词必须与之同源）。
+          v3.1 收敛为：<b>Skill 只提供 instructions + 触发描述，不重复声明工具</b>；确需裁剪时走注册表的 <code>enabled(ctx)</code>。</div>
+        <div class="chips"><span class="chip">单一真相源</span><span class="chip">不复制工具清单</span></div></div>
+      <div class="box future" style="--tcol:var(--amber)"><div class="bt">为何排后</div>
+        <div class="bd">能力包化是<b>组织性收益</b>，不解决当下"聊得久"，故排在上下文引擎之后。</div>
+        <div class="chips"><span class="chip">P3</span></div></div>
+    </div>
+  </section>
+
+  <div class="flow">▲ 为主循环提供可插拔能力</div>
+
+  <!-- ===== L1 Context Engine ===== -->
+  <section class="layer future" style="--accent:var(--teal)">
+    <div class="lhead"><div class="lbadge">L1</div>
+      <div><div class="ltitle">Context Engine · 上下文引擎</div><div class="lpath">server/context/{budget,summarize,retrieval,assemble}.ts</div></div>
+      <span class="tagnew">待建 · P1 最高优先</span></div>
+    <p class="ldesc">不再靠"截断"维持上下文，改为<b>预算驱动的装配器</b>。<b>铁律：<code>assembleContext()</code> 是主循环获取上下文的唯一出口</b>（含产物内容注入）。
+      长度由模型 token 窗口动态分配，<b>且必须用实测 token 校准</b>。</p>
+    <div class="grid g4">
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">① Token 预算器</div>
+        <div class="bd"><code>allocate()</code> 把窗口切给 system/memory/tools/history；<code>resolveWindow(model)</code> 读模型上限（不硬编码）。
+          <b>前置条件：P0 的 usage 采集</b>，否则字符/token 系数无校准依据。</div>
+        <div class="chips"><span class="chip">budget.ts</span><span class="chip">消灭 12轮/6000字符</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">② 滚动摘要</div>
+        <div class="bd"><code>compactOldTurns()</code> 保留近 K 轮原文，更早的异步压成摘要（只压事实结论，<b>不删 DB</b>）。
+          装配时<b>只读已生成摘要</b>，未就绪则 <code>compacted=false</code> 并后台补做。</div>
+        <div class="chips"><span class="chip">summarize.ts</span><span class="chip">异步·幂等</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">③ 装配器<span class="rv">修订</span></div>
+        <div class="bd"><code>assembleContext()</code>（turn 级·同步）是唯一出口；<code>guardBudget(messages)</code>（iteration 级）负责轮内裁剪 ——
+          <b>两个 API 拆开</b>，否则"每轮检查预算"会让"唯一出口"这条铁律无法成立。保留旧 <code>buildHistory</code> 一版作 fallback。</div>
+        <div class="chips"><span class="chip">assemble.ts</span><span class="chip">guardBudget</span><span class="chip">灰度可回退</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">④ 记忆召回钩子<span class="rv">修订</span></div>
+        <div class="bd">从"取最近12条"改相关性召回（见 L2）。<b>必须先定义 query 语义</b>：取"最近 K 轮拼接"而非仅当前句，
+          否则多轮指代（"明天上午"）无关键词命中 → 必走回退分支，用例 E1 根本测不到收益。</div>
+        <div class="chips"><span class="chip">retrieval.ts</span><span class="chip">近 K 轮 query</span><span class="chip">可换实现</span></div></div>
+    </div>
+    <div class="box future" style="--tcol:var(--teal);margin-top:12px"><div class="bt">⑤ 改造前提：旁路收口<span class="rv">新增</span></div>
+      <div class="bd">现有 <code>buildHistory()</code> 是 <code>bailian.ts</code> 内部私有函数，且同文件还有 <code>tryFindArtifactContent()</code> 把产物真实全文<b>直接拼进 user 消息</b>。
+        两处都要归入装配器（或显式登记为豁免），否则"唯一出口"第一天就漏。</div>
+      <div class="chips"><span class="chip">buildHistory</span><span class="chip">tryFindArtifactContent</span><span class="chip">迁移清单</span></div></div>
+  </section>
+
+  <!-- ===== L2 Memory ===== -->
+  <section class="layer" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">L2</div>
+      <div><div class="ltitle">Memory · 分层与检索</div><div class="lpath">memories / messages / artifacts / tracks / agent_runs · recallForPrompt()</div></div>
+      <span class="taglive">部分已落地 · 检索化待建</span></div>
+    <p class="ldesc">四层记忆各司其职：会话记忆进上下文、长期画像按相关性召回、项目事实由工具按需读、运行轨迹<b>只做可观测不进上下文</b>。</p>
+    <div class="grid g4">
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">会话记忆<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">messages 表；现状按预算内滚动摘要 + 近轮原文（摘要部分待建）。</div>
+        <div class="chips"><span class="chip">messages</span></div></div>
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">长期画像 · 检索化<span class="tagnew" style="margin-left:auto">待建</span></div>
+        <div class="bd"><code>recallForPrompt()</code> 相关性打分：关键词*.6 + recency*.3 + kind*.1；无匹配回退"取最近 N 条"。
+          <b>服务端需新增归一函数</b>：现有 <code>normKey</code> 只在前端，服务端 <code>saveMemory</code> 是精确 key 覆盖。</div>
+        <div class="chips"><span class="chip">memories</span><span class="chip">服务端归一 key</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">项目事实<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">artifacts / tracks，<b>不注入上下文</b>，由 open_artifact 等工具按需读取（含 L1 ⑤ 的产物注入旁路）。</div>
+        <div class="chips"><span class="chip">artifacts</span><span class="chip">tracks</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">运行轨迹<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">agent_runs 已记 tools_used/model，<b>但 outcome 恒为 'handled'</b>；v3.1 补 span + tokens + 真实 outcome 后接步级 trace。</div>
+        <div class="chips"><span class="chip">agent_runs</span><span class="chip">不进上下文</span></div></div>
+    </div>
+  </section>
+
+  <div class="flow">▼ 装配后的上下文喂给主循环</div>
+
+  <!-- ===== L0 主循环（不变） ===== -->
+  <section class="loop-core">
+    <div class="loop-title">
+      <div class="t">🤖 L0 · Agent 主循环　<span class="taglive">骨架不变</span></div>
+      <div class="s">标准 ReAct 形态，限 6 轮（<code>MAX_AGENT_ITERATIONS=6</code>，定义在 <code>server/agent.ts</code>）<br>
+        <span style="color:var(--amber)">修订：超时实为 4 层（120s / 150s / 180s / 工具 15s×3），需收敛为单一延迟预算</span></div>
+    </div>
+    <div class="loop-row">
+      <span class="step"><b>1</b><span class="lbl">组装上下文</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>2</b><span class="lbl">思考·流式吐字</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>3</b><span class="lbl">选择工具</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>4</b><span class="lbl">执行工具</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>5</b><span class="lbl">接收观察</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>6</b><span class="lbl">收敛判断</span></span>
+    </div>
+    <div class="sse">
+      <span class="ev">text</span>
+      <span class="ev">tool</span>
+      <span class="ev">tool_result</span>
+      <span class="ev">artifact</span>
+      <span class="ev">ask_user</span>
+      <span class="ev">done</span>
+      <span class="ev route">music</span>
+      <span class="ev route">notice</span>
+    </div>
+    <div class="sse-note">主循环 <code>AgentEvent</code> 只发前 6 种；<span class="ev route" style="padding:2px 8px">music</span> / <span class="ev route" style="padding:2px 8px">notice</span> 由 route 层（<code>server/routes/chat.ts</code>）合成并下发 —— 两层契约，勿混为"主循环事件"。</div>
+  </section>
+
+  <!-- ===== L0+ 主循环补强 ===== -->
+  <section class="layer future" style="--accent:var(--cyan)">
+    <div class="lhead"><div class="lbadge">L0+</div>
+      <div><div class="ltitle">主循环补强 · 三处（骨架不变）+ 两处随修</div><div class="lpath">server/llm/bailian.ts · server/agent.ts · server/tools/registry.ts</div></div>
+      <span class="tagnew">v3.1 重排优先级</span></div>
+    <p class="ldesc">L0 骨架已是标准 ReAct（迭代上限 / 流式 / <code>tool_calls</code> 与 <code>role:'tool'</code> 严格回写 / <code>ask_user</code> 人在环中断），<b>骨架不变</b>。
+      <span class="rev">修订</span> 但"设计正确且规范"过头了：骨架内有两处已知缺陷，应随 L1 一并修（见下）。</p>
+    <div class="grid g3">
+      <div class="box future" style="--tcol:var(--cyan)"><div class="bt">① 轮内预算守卫<span class="rv">P1 首位</span></div>
+        <div class="bd">现状仅靠固定 6 轮 + 前端 150s 看门狗。若一轮工具返回大量内容（<code>get_schedule</code> / <code>web_lookup</code>），易撑爆下一轮。
+          需<b>每轮检查 token 累积</b>，超限即压缩或裁剪（接 L1 的 <code>guardBudget()</code>）。<b>这是"聊得久"的直接解</b>。</div>
+        <div class="chips"><span class="chip">per-iter token check</span><span class="chip">接 L1 预算器</span></div></div>
+      <div class="box future" style="--tcol:var(--cyan)"><div class="bt">② 过程可观测<span class="rv">P0</span></div>
+        <div class="bd">现状只有 <code>agent_runs</code> 记一轮结果，看不到"为什么调这个工具"。补 <code>agent_spans</code> 每步落 span（见 L4，同一件事，勿重复排期）。</div>
+        <div class="chips"><span class="chip">agent_spans</span><span class="chip">依赖 P0 产出</span></div></div>
+      <div class="box future" style="--tcol:var(--cyan)"><div class="bt">③ 并行执行工具<span class="rv">降为 P2</span></div>
+        <div class="bd">现状 <code>for...of</code> 串行 await。但每轮一次的 LLM 流式调用<b>天然不可并行</b>，SQLite（better-sqlite3）是同步驱动 →
+          真正受益的只有网络型工具，而风险实打实：<code>messages</code> 回写必须<b>按 tool_call_id 对齐</b>，副作用分类在注册表里<b>尚不存在</b>（会退化成硬编码名单）。</div>
+        <div class="chips"><span class="chip">前置：Tool.sideEffect</span><span class="chip">tool_call_id 对齐</span></div></div>
+    </div>
+    <div class="box future" style="--tcol:var(--cyan);margin-top:12px"><div class="bt">随 L1 一起修的两处（v3 未点名）<span class="rv">新增</span></div>
+      <div class="bd">
+        <b>a. 跨轮重复回写</b>：<code>fullText</code> 逐轮累积后又作为每轮 assistant 的 <code>content</code> 回写，同一段话被重复塞进上下文 —— 浪费预算、干扰摘要，正是预算器要治理的对象。<br>
+        <b>b. 工具结果无长度上限</b>：<code>execTool</code> 的返回值原样 push 进 messages，<code>MEMORY_SNIPPET_MAX</code> 只作用于记忆。建议在 <code>execTool</code> 出口统一裁剪（单一出口）。</div>
+      <div class="chips"><span class="chip">fullText 重复</span><span class="chip">工具结果裁剪</span><span class="chip">execTool 出口</span></div></div>
+    <div class="evo" style="--accent:var(--cyan)">
+      <div class="lbl">已做对（保持）</div>
+      <div class="er">
+        <span class="next">迭代上限 6 轮</span>
+        <span class="next">流式吐字</span>
+        <span class="next"><code>tool_calls</code>/<code>role:'tool'</code> 严格回写</span>
+        <span class="next"><code>if(!toolCalls.length) break</code> 收敛判据</span>
+        <span class="next"><code>ask_user</code> 人在环中断</span>
+        <span class="next">execTool 超时+重试、永不抛错</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 事实基线 ===== -->
+  <section class="layer" style="--accent:var(--gold)">
+    <div class="lhead"><div class="lbadge">✓</div>
+      <div><div class="ltitle">事实基线（已核实 · 带行号）</div>
+        <div class="lpath">逐条对照源码；行号基于 2026-10-07 工作区快照</div></div></div>
+    <div class="facts">
+      <div class="fact"><span class="q">客户端看门狗 = <b>150 000ms</b>（v3 写 6s）</span><span class="src">src/hooks/useServiceChat.ts:33</span><span class="v warn">⚠ 纠偏</span></div>
+      <div class="fact"><span class="q">超时 4 层：route 120s / 前端 150s / 循环 abort 180s / 工具 15s×3</span><span class="src">routes/chat.ts:17 · useServiceChat.ts:33 · llm/bailian.ts:354 · tools/registry.ts:507</span><span class="v warn">⚠ 需收敛</span></div>
+      <div class="fact"><span class="q"><code>MAX_AGENT_ITERATIONS=6</code> 定义在 agent.ts，bailian 为 import</span><span class="src">server/agent.ts:22 · llm/bailian.ts:18</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q">多 <code>tool_calls</code> 串行 await（<code>for...of</code>）</span><span class="src">llm/bailian.ts:394-450</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q">收敛判据 <code>if(!toolCalls.length) break</code>；tool 严格回写</span><span class="src">llm/bailian.ts:380 · 383-392 · 430</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q"><code>ask_user</code> 人在环中断本轮</span><span class="src">llm/bailian.ts:405-427</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q"><code>buildHistory(maxTurns=12, maxChars=6000)</code> 是同文件私有函数</span><span class="src">llm/bailian.ts:261-288 · 调用 362</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q">记忆注入取最近 12 条、单条截 160 字符</span><span class="src">server/agent.ts:58-72</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q">工具 13 个；execTool 统一 timeout(15s) + retry(2)，永不抛错</span><span class="src">tools/registry.ts:66-435 · 473-514</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q">四层记忆表齐备（messages/memories/artifacts+tracks/agent_runs）</span><span class="src">server/db/core.ts:44-101 · 233-277</span><span class="v ok">✅</span></div>
+      <div class="fact"><span class="q"><code>agent_runs</code> 无 token 列；全链路不解析 <code>usage</code></span><span class="src">db/core.ts:92-101 · llm/bailian.ts:109-182</span><span class="v bad">✗ 缺数据源</span></div>
+      <div class="fact"><span class="q"><code>outcome</code> 恒为 <code>'handled'</code>（出错/兜底同值）</span><span class="src">llm/bailian.ts:346 · server/agent.ts:169</span><span class="v bad">✗ 需修</span></div>
+      <div class="fact"><span class="q">治理面板已有轮级"活动流"（并非"无视图"）</span><span class="src">src/components/GovernanceLayer.tsx:215-224 · routes/admin.ts:137</span><span class="v warn">⚠ 纠偏</span></div>
+      <div class="fact"><span class="q"><code>normKey</code> 只在前端；服务端 saveMemory 精确 key 覆盖</span><span class="src">src/components/dashboard/shared.ts:50 · db/memories.ts:24-26</span><span class="v bad">✗ 需新增</span></div>
+      <div class="fact"><span class="q">产物内容注入旁路（直拼 user 消息）</span><span class="src">llm/bailian.ts:295-306 · 358</span><span class="v warn">⚠ 与唯一出口冲突</span></div>
+      <div class="fact"><span class="q"><code>fullText</code> 跨轮累积后逐轮回写为 assistant.content</span><span class="src">llm/bailian.ts:386</span><span class="v bad">✗ 重复注入</span></div>
+      <div class="fact"><span class="q">无 <code>.git</code>、无 CI、无 evals 目录、无 <code>npm run eval</code></span><span class="src">目录实测 · package.json:12</span><span class="v warn">⚠ P0 前置</span></div>
+      <div class="fact"><span class="q"><code>npm test</code> = 7 个探针脚本 <code>&amp;&amp;</code> 串联，无断言框架</span><span class="src">package.json:12</span><span class="v warn">⚠ 安全网偏弱</span></div>
+    </div>
+  </section>
+
+  <!-- ===== 路线图 ===== -->
+  <section class="layer" style="--accent:var(--cyan)">
+    <div class="lhead"><div class="lbadge">🗓</div>
+      <div><div class="ltitle">落地顺序 · 每阶段独立可验证</div><div class="lpath">强制：npm test + npm run eval 全绿且对照 evals 无退化（结果存档 evals/report.json）</div></div></div>
+    <div class="road">
+      <div class="ph" style="--accent:var(--violet)"><div class="pn">P0 · 安全网</div><div class="pt">VCS + Trace + Evals</div>
+        <div class="pd">先能"看见"、能"回退"，再动刀</div>
+        <div class="gatelbl">完成判据</div>
+        <ul><li>第 0 步：<code>git init</code> + 基线提交</li><li>usage/tokens 落库（含 stream 开关）</li><li>outcome 真实化：handled/fallback/error</li><li>agent_spans + 面板步级视图</li><li>evals 骨架 + E1–E7 + <code>npm run eval</code></li></ul></div>
+      <div class="ph" style="--accent:var(--teal)"><div class="pn">P1 · 上下文 + 循环</div><div class="pt">Context Engine + L0+</div>
+        <div class="pd">让"聊得久、记得住"，顺带补强循环</div>
+        <div class="gatelbl">完成判据</div>
+        <ul><li>assembleContext + guardBudget 双 API</li><li>产物注入旁路收口（无第二出口）</li><li>历史长度由预算算，实测 token 误差 ≤20%</li><li>记忆检索化 + query=近 K 轮</li><li>E5/E6 通过，兜底率不升</li></ul></div>
+      <div class="ph" style="--accent:var(--teal)"><div class="pn">P2 · 长程</div><div class="pt">滚动摘要（+可选并行工具）</div>
+        <div class="pd">长会话不丢早期</div>
+        <div class="gatelbl">完成判据</div>
+        <ul><li>compactOldTurns：近 K 轮原文 + 更早摘要</li><li>异步·幂等·不删 DB</li><li>&gt;30 轮会话仍能引用早期事实</li><li>并行工具（若做）：先声明 sideEffect</li></ul></div>
+      <div class="ph" style="--accent:var(--amber)"><div class="pn">P3 · 扩展</div><div class="pt">Skills 包化</div>
+        <div class="pd">能力解耦</div>
+        <div class="gatelbl">完成判据</div>
+        <ul><li>Skill 类型定义（不含工具清单）</li><li>先抽 1~2 个域试点</li><li>新增能力不改主循环</li></ul></div>
+    </div>
+    <div class="no">
+      <span class="t">本期明确不做</span>
+      <div class="items"><span>鉴权 / 多用户隔离（上云前必补）</span><span>沙箱执行提权（自用单机）</span><span>多 Agent 全铺开（字段已预留；编排实现已归档为死代码）</span><span>LLM 打分式评估</span><span>向量检索（先关键词+recency）</span></div>
+    </div>
+  </section>
+
+  <!-- ===== 风险 ===== -->
+  <section class="layer" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">⚠</div>
+      <div><div class="ltitle">风险与对策</div><div class="lpath">对齐 md §9，v3.1 新增 3 条</div></div></div>
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">上下文引擎致回复变差</div>
+        <div class="bd">Evals 先上（P0），灰度对比，改前改后各跑一遍并存档。</div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">摘要丢关键信息</div>
+        <div class="bd">只压事实/结论，原文不删（不删 DB），E5 守住"早期事实可引用"。</div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">记忆召回不准</div>
+        <div class="bd">关键词+recency 起步，保留"取最近 N 条"回退；query 语义先行定义。</div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">trace 数据面无治理<span class="rv">新增</span></div>
+        <div class="bd">span 内置脱敏 + 保留期 30d + 批量写；上云前补鉴权与租户隔离。</div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">无 VCS/CI 时"全绿"不可信<span class="rv">新增</span></div>
+        <div class="bd">P0-0 先 <code>git init</code>；eval 结果落盘 <code>evals/report.json</code> 可比对；缺 Key 时如实 SKIP，不得假绿。</div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">并行改造致 tool_call_id 错配<span class="rv">新增</span></div>
+        <div class="bd">必须按 id 回填 messages，禁止按到达顺序 append；<code>Tool.sideEffect</code> 未声明前不并行。</div></div>
+    </div>
+  </section>
+
+  <footer>栖光 · 星澜 · 架构演进图 <b>v3.1</b> · 唯一真相源 <code>docs/ARCHITECTURE-v3.md</code> · 修订依据 <code>docs/ARCHITECTURE-v3.1-addendum.md</code><br>
+    虚线为待建层 · 所有"现状"断言附源码行号（2026-10-07 快照）</footer>
+</div>
+</body>
+</html>

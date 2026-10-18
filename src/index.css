@@ -1,0 +1,5 @@
+/* 星澜 · 入口样式：仅保留 Tailwind 工具类生成。
+   全部视觉设计（令牌 / 布局 / 组件）见 src/components/xinglan.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

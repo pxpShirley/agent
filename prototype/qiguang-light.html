@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖光 · 光态原型</title>
+<style>
+    :root {
+        --bg-deep: #05070e;
+        --bg-base: #0a0e1a;
+        --bg-glass: rgba(255, 255, 255, 0.03);
+        --text: #f0f4fe;
+        --text-2: rgba(240, 244, 254, 0.62);
+        --text-3: rgba(240, 244, 254, 0.3);
+        --core: #6fd6ff;
+        --core-2: #a78bfa;
+        --gold: #f6c062;
+        --border: rgba(255, 255, 255, 0.07);
+        --lx: 0px;
+        --ly: 0px;
+        --hx: 50%;
+        --hy: 50%;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; min-height: 100vh; background: var(--bg-deep); color: var(--text);
+        font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        display: flex; flex-direction: column; align-items: center; padding: 28px 24px 40px;
+    }
+    h1 { font-size: 17px; font-weight: 600; margin: 0 0 6px; letter-spacing: 0.01em; }
+    .lede { font-size: 13px; color: var(--text-3); margin: 0 0 24px; }
+    .wrap { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+
+    /* ============ 舞台：栖光在场 ============ */
+    .stage {
+        position: relative; width: 420px; height: 560px; border-radius: 20px; overflow: hidden;
+        background: linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.008));
+        border: 1px solid var(--border);
+    }
+    .stage::before {
+        content: ""; position: absolute; inset: -30% -10% auto -10%; height: 70%;
+        background: radial-gradient(60% 60% at 50% 40%, rgba(111,214,255,0.10), transparent 70%);
+        pointer-events: none;
+    }
+    .orbit {
+        position: absolute; left: 50%; top: 46%; width: 300px; height: 300px; margin: -150px 0 0 -150px;
+        border-radius: 50%; border: 1px solid rgba(255,255,255,0.05); pointer-events: none;
+    }
+    .orbit.b { width: 220px; height: 220px; margin: -110px 0 0 -110px; border-color: rgba(255,255,255,0.04); }
+
+    /* 光体：可整体位移（去办事） */
+    .light {
+        position: absolute; left: 50%; top: 46%; width: 200px; height: 200px; margin: -100px 0 0 -100px;
+        transform: translate(calc(var(--lx) + 0px), var(--ly));
+        transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+        display: grid; place-items: center;
+    }
+    .halo, .core, .sheen { position: absolute; border-radius: 50%; }
+    .halo {
+        width: 190px; height: 190px;
+        background: radial-gradient(circle, rgba(111,214,255,0.30), rgba(111,214,255,0.09) 45%, transparent 70%);
+        filter: blur(16px);
+    }
+    .core {
+        width: 82px; height: 82px;
+        background: radial-gradient(circle at 42% 38%, #ffffff 0%, var(--core) 38%, rgba(111,214,255,0.55) 62%, rgba(111,214,255,0.12) 100%);
+        filter: blur(1.5px);
+        box-shadow: 0 0 42px rgba(111,214,255,0.45), 0 0 90px rgba(111,214,255,0.18);
+    }
+    /* 朝向：光会转向你 —— 替代"眼睛跟随" */
+    .sheen {
+        width: 46px; height: 46px; left: var(--hx); top: var(--hy);
+        background: radial-gradient(circle, rgba(255,255,255,0.85), rgba(255,255,255,0) 70%);
+        opacity: 0.55; filter: blur(3px); pointer-events: none;
+    }
+    .ring { position: absolute; border-radius: 50%; border: 1px solid rgba(167,139,250,0.35); opacity: 0; }
+
+    /* 诉说：向对话方向溢出的光 */
+    .trail { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+    .trail i {
+        position: absolute; width: 7px; height: 7px; border-radius: 50%; margin: -3.5px 0 0 -3.5px;
+        background: rgba(111,214,255,0.85); opacity: 0; filter: blur(1px);
+    }
+
+    /* —— 状态：静候 —— */
+    .stage[data-s="calm"] .halo { animation: breathe 5.2s ease-in-out infinite; }
+    .stage[data-s="calm"] .core { animation: pulse 5.2s ease-in-out infinite; }
+    @keyframes breathe { 0%,100% { transform: scale(1); opacity: .85 } 50% { transform: scale(1.10); opacity: 1 } }
+    @keyframes pulse { 0%,100% { transform: scale(1) } 50% { transform: scale(1.05) } }
+
+    /* —— 状态：思考：内收 + 震颤 —— */
+    .stage[data-s="thinking"] .core { width: 58px; height: 58px; animation: tremor 0.42s ease-in-out infinite; }
+    .stage[data-s="thinking"] .halo { width: 140px; height: 140px; opacity: .7; animation: breathe 2.6s ease-in-out infinite; }
+    .stage[data-s="thinking"] .ring { opacity: 1; }
+    .stage[data-s="thinking"] .ring.r1 { width: 92px; height: 92px; animation: contract 1.9s ease-in-out infinite; }
+    .stage[data-s="thinking"] .ring.r2 { width: 120px; height: 120px; animation: contract 1.9s ease-in-out infinite 0.28s; }
+    @keyframes tremor { 0%,100% { transform: translate(0,0) } 25% { transform: translate(0.8px,-0.6px) } 75% { transform: translate(-0.7px,0.7px) } }
+    @keyframes contract { 0%,100% { transform: scale(1); opacity: .5 } 50% { transform: scale(0.72); opacity: .12 } }
+
+    /* —— 状态：诉说：朝对话方向淌出 —— */
+    .stage[data-s="speaking"] .core { animation: pulse 1.5s ease-in-out infinite; }
+    .stage[data-s="speaking"] .halo { animation: breathe 1.5s ease-in-out infinite; }
+    .stage[data-s="speaking"] .trail i { animation: spill 1.25s linear infinite; }
+    .stage[data-s="speaking"] .trail i:nth-child(1) { animation-delay: 0s }
+    .stage[data-s="speaking"] .trail i:nth-child(2) { animation-delay: 0.22s }
+    .stage[data-s="speaking"] .trail i:nth-child(3) { animation-delay: 0.44s }
+    .stage[data-s="speaking"] .trail i:nth-child(4) { animation-delay: 0.66s }
+    @keyframes spill {
+        0% { transform: translate(24px, 0) scale(1); opacity: .9 }
+        60% { opacity: .5 }
+        100% { transform: translate(150px, 26px) scale(0.35); opacity: 0 }
+    }
+
+    /* —— 状态：等你定：半边暖金，定住不催 —— */
+    .stage[data-s="waiting"] .core {
+        background: linear-gradient(96deg,
+            rgba(111,214,255,0.9) 0%, rgba(111,214,255,0.55) 38%,
+            rgba(200,190,140,0.8) 50%, var(--gold) 62%, var(--gold) 100%);
+        animation: none; filter: blur(3.5px);
+        box-shadow: 0 0 40px rgba(246,192,98,0.35), 0 0 80px rgba(111,214,255,0.14);
+    }
+    .stage[data-s="waiting"] .halo {
+        background: radial-gradient(circle, rgba(246,192,98,0.26), rgba(111,214,255,0.08) 48%, transparent 70%);
+        animation: none;
+    }
+    .stage[data-s="waiting"] .sheen { opacity: 0.3; }
+
+    /* —— 状态：去办事：离开 → 带回结果 —— */
+    .stage[data-s="away"] .light { animation: errand 3.4s cubic-bezier(0.5, 0, 0.3, 1) forwards; }
+    .stage[data-s="away"] .core { animation: dim 3.4s ease-in-out forwards; }
+    @keyframes errand {
+        0%   { transform: translate(0, 0) scale(1) }
+        18%  { transform: translate(90px, -48px) scale(0.6) }
+        46%  { transform: translate(140px, 18px) scale(0.34) }
+        62%  { transform: translate(126px, 54px) scale(0.34) }
+        86%  { transform: translate(52px, 30px) scale(0.72) }
+        100% { transform: translate(0, 0) scale(1) }
+    }
+    @keyframes dim { 0%,100% { opacity: 1 } 46% { opacity: .55 } }
+    .path { position: absolute; left: 50%; top: 46%; width: 300px; height: 200px; margin: -100px 0 0 -100px; opacity: 0; transition: opacity .4s; }
+    .stage[data-s="away"] .path { opacity: .5 }
+    .path path { fill: none; stroke: rgba(111,214,255,0.35); stroke-width: 1; stroke-dasharray: 4 6; }
+
+    /* 带回的结果 */
+    .brought {
+        position: absolute; left: 50%; bottom: 116px; transform: translate(-50%, 10px);
+        padding: 8px 14px; border-radius: 999px; font-size: 12.5px; color: var(--text);
+        background: rgba(111,214,255,0.10); border: 1px solid rgba(111,214,255,0.28);
+        opacity: 0; transition: opacity .5s, transform .5s; pointer-events: none; white-space: nowrap;
+    }
+    .brought.on { opacity: 1; transform: translate(-50%, 0); }
+
+    /* 状态标签与台词 */
+    .lx-state {
+        position: absolute; left: 0; right: 0; bottom: 86px; text-align: center;
+        font-size: 12.5px; color: var(--text-2); letter-spacing: 0.04em;
+    }
+    .lx-cap {
+        position: absolute; left: 0; right: 0; bottom: 60px; text-align: center;
+        font-size: 11.5px; color: var(--text-3);
+    }
+    .hint { position: absolute; left: 0; right: 0; bottom: 24px; text-align: center; font-size: 11px; color: rgba(240,244,254,0.18); }
+
+    /* ============ 控制面板 ============ */
+    .panel { width: 380px; display: flex; flex-direction: column; gap: 14px; }
+    .card {
+        background: var(--bg-glass); border: 1px solid var(--border);
+        border-radius: 16px; padding: 16px 18px;
+    }
+    .card h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+    .card p { margin: 0; font-size: 12.5px; color: var(--text-2); line-height: 1.65; }
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+    button.st {
+        padding: 8px 14px; border-radius: 999px; cursor: pointer; font-size: 12.5px;
+        color: var(--text-2); background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border); transition: 0.2s; font-family: inherit;
+    }
+    button.st:hover { color: var(--text); border-color: rgba(111,214,255,0.4); }
+    button.st.on { color: #04141a; background: var(--core); border-color: var(--core); font-weight: 600; }
+    .note { font-size: 12px; color: var(--text-3); line-height: 1.7; }
+    .note b { color: var(--text-2); font-weight: 600; }
+
+    /* 对照：现行 mochi */
+    .cmp { display: flex; gap: 14px; align-items: center; }
+    .mochi { width: 96px; height: 96px; flex-shrink: 0; }
+    .cmp-txt { font-size: 12px; color: var(--text-3); line-height: 1.7; }
+
+    @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; }
+    }
+</style>
+</head>
+<body>
+<h1>栖光 · 光态原型</h1>
+<p class="lede">形随事动，不随心情动。移动鼠标靠近它 —— 光会转向你。</p>
+
+<div class="wrap">
+    <div class="stage" id="stage" data-s="calm">
+        <div class="orbit"></div>
+        <div class="orbit b"></div>
+        <svg class="path" viewBox="0 0 300 200"><path d="M150 100 C 190 55, 245 60, 284 116 C 296 134, 272 152, 218 152" /></svg>
+
+        <div class="light" id="light">
+            <div class="halo"></div>
+            <div class="ring r2"></div>
+            <div class="ring r1"></div>
+            <div class="core"></div>
+            <div class="sheen" id="sheen"></div>
+            <div class="trail"><i></i><i></i><i></i><i></i></div>
+        </div>
+
+        <div class="brought" id="brought">带回了：周末回家吃饭 · 已订好</div>
+        <div class="lx-state" id="lxState">静候</div>
+        <div class="lx-cap" id="lxCap">在这儿，随时听你吩咐</div>
+        <div class="hint">没有脸，也没有表情 —— 只有朝向</div>
+    </div>
+
+    <div class="panel">
+        <div class="card">
+            <h3>状态</h3>
+            <p>由它正在做的事推导，不由心情决定，更不由你手动设置。</p>
+            <div class="btns" style="margin-top:12px">
+                <button class="st on" data-go="calm">静候</button>
+                <button class="st" data-go="thinking">思考</button>
+                <button class="st" data-go="speaking">诉说</button>
+                <button class="st" data-go="waiting">等你定</button>
+                <button class="st" data-go="away">去办事</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>改了什么</h3>
+            <p class="note">
+                <b>去掉脸。</b>眼睛、嘴、腮红一并拿掉 —— 保留"注视"而非"表情"。光有朝向就足够表达"它在看你"。<br>
+                <b>删掉开心 / 担忧 / 安睡。</b>管家不需要比你还情绪化，它需要可靠。<br>
+                <b>情绪板移除。</b>你能手动给它调"开心"的那一刻，就等于承认情绪是表演。
+            </p>
+        </div>
+
+        <div class="card">
+            <h3>对照：现在的样子</h3>
+            <div class="cmp">
+                <svg class="mochi" viewBox="0 0 100 100">
+                    <ellipse cx="50" cy="86" rx="26" ry="5" fill="rgba(111,214,255,0.10)"/>
+                    <rect x="38" y="76" width="9" height="10" rx="4.5" fill="#7f8bb5"/>
+                    <rect x="53" y="76" width="9" height="10" rx="4.5" fill="#7f8bb5"/>
+                    <circle cx="50" cy="50" r="30" fill="url(#mg)"/>
+                    <circle cx="41" cy="46" r="4.6" fill="#1b2440"/>
+                    <circle cx="59" cy="46" r="4.6" fill="#1b2440"/>
+                    <circle cx="42.6" cy="44.2" r="1.7" fill="#fff"/>
+                    <circle cx="60.6" cy="44.2" r="1.7" fill="#fff"/>
+                    <ellipse cx="33" cy="55" rx="5" ry="3" fill="rgba(246,150,150,0.45)"/>
+                    <ellipse cx="67" cy="55" rx="5" ry="3" fill="rgba(246,150,150,0.45)"/>
+                    <path d="M45 57 Q50 62 55 57" stroke="#1b2440" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M50 14 l2.2 5.4 5.4 2.2 -5.4 2.2 -2.2 5.4 -2.2 -5.4 -5.4 -2.2 5.4 -2.2 Z" fill="#6fd6ff"/>
+                    <defs><radialGradient id="mg" cx="42%" cy="36%">
+                        <stop offset="0%" stop-color="#dff3ff"/><stop offset="60%" stop-color="#9fc6f0"/><stop offset="100%" stop-color="#6f86b8"/>
+                    </radialGradient></defs>
+                </svg>
+                <div class="cmp-txt">mochi 团子 + 眼睛 + 腮红 + 小脚。<br>短期亲和力强，长期会在"被看穿是表演"时失效。</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>还留着的一笔</h3>
+            <p class="note"><b>出去 — 回来。</b>点「去办事」：光点离开中心去跑一趟，回来时带回结果。这是陪伴类 agent 最难被抄走的部分 —— 从"陪你聊天"变成"有人替你跑腿"。</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const stage = document.getElementById('stage');
+    const sheen = document.getElementById('sheen');
+    const stateEl = document.getElementById('lxState');
+    const capEl = document.getElementById('lxCap');
+    const brought = document.getElementById('brought');
+    const light = document.getElementById('light');
+
+    const TEXT = {
+        calm:     ['静候', '在这儿，随时听你吩咐'],
+        thinking: ['思考', '正在替你想这件事'],
+        speaking: ['诉说', '光朝对话的方向淌出去'],
+        waiting:  ['等你定', '半边转暖金，不催你'],
+        away:     ['去办事', '先去跑一趟'],
+    };
+
+    let awayTimer = null;
+    function set(s) {
+        clearTimeout(awayTimer);
+        brought.classList.remove('on');
+        // 重放入场动画
+        light.style.animation = 'none';
+        void light.offsetWidth;
+        light.style.animation = '';
+        stage.dataset.s = s;
+        stateEl.textContent = TEXT[s][0];
+        capEl.textContent = TEXT[s][1];
+        if (s === 'away') {
+            awayTimer = setTimeout(() => {
+                stage.dataset.s = 'calm';
+                stateEl.textContent = '回来了';
+                capEl.textContent = '带回了：周末回家吃饭 · 已订好';
+                brought.classList.add('on');
+            }, 3400);
+        }
+        document.querySelectorAll('button.st').forEach((b) => b.classList.toggle('on', b.dataset.go === s));
+    }
+
+    document.querySelectorAll('button.st').forEach((b) => b.addEventListener('click', () => set(b.dataset.go)));
+
+    // 光朝向鼠标 —— 替代"眼睛跟随"：不是表情，是注意力
+    stage.addEventListener('mousemove', (e) => {
+        const r = stage.getBoundingClientRect();
+        const dx = (e.clientX - r.left - r.width / 2) / (r.width / 2);
+        const dy = (e.clientY - r.top - r.height * 0.46) / (r.height / 2);
+        const k = 14;
+        stage.style.setProperty('--lx', (dx * k).toFixed(1) + 'px');
+        stage.style.setProperty('--ly', (dy * k).toFixed(1) + 'px');
+        const c = 100, rad = 26;
+        sheen.style.left = (50 + Math.max(-1, Math.min(1, dx)) * rad) + '%';
+        sheen.style.top = (50 + Math.max(-1, Math.min(1, dy)) * rad) + '%';
+    });
+    stage.addEventListener('mouseleave', () => {
+        stage.style.setProperty('--lx', '0px');
+        stage.style.setProperty('--ly', '0px');
+        sheen.style.left = '50%'; sheen.style.top = '50%';
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+# 依赖与构建产物
+node_modules/
+dist/
+node_modules/.cache/
+
+# 本地数据（sqlite 演示库，启动时会自动 seed）
+# ⚠️ 不带斜杠的 `data/` 会匹配任意层级的 data 目录，
+#    包括 server/data/chat.db（里面有真实对话记录与音乐路径），必须挡住。
+data/
+
+# 环境变量：含真实凭证，切勿提交
+.env
+.env.local
+
+# 日志
+*.log
+
+# vite 的配置时间戳缓存，每次构建都会新生成一个
+vite.config.js.timestamp-*
+# vite.config.ts 的构建副产物（真正的源文件是 vite.config.ts）
+/vite.config.js
+/vite.config.d.ts
+# tsc 增量构建缓存
+*.tsbuildinfo
+
+# 构建日志 / 一次性验证脚本
+/last_build.txt
+/shot.cjs
+/test_phase1.cjs
+
+# —— 本地调试遗留（不入库）——
+# 根目录一批 `_` 开头的截图脚本/产物、构建日志、一次性验证脚本
+/_*.cjs
+/_*.js
+/_*.png
+/_*.txt
+
+# 25MB UI 截图集，体积太大且随时间过期
+/_shots/
+
+# 本地临时目录
+/tmp/
+
+# 构建时间标记
+/.last-build-ts
+
+# 构建日志
+/build_*.txt
+/build_out.txt
+
+# —— 本地 agent 工作区记忆（机器本地状态，不属于产品代码）——
+/.workbuddy/

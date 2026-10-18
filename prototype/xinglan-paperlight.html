@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小满 · 书灯 — 未来 AI Agent 交互原型（彻底重构版）</title>
+<style>
+:root{
+  --paper:#f6f1e4; --paper-deep:#efe7d4; --paper-light:#fbf7ec;
+  --ink:#3a362e; --ink-dim:#6f675a; --ink-faint:#a89e8b;
+  --bamboo:#517d6f; --bamboo-soft:rgba(81,125,111,.12); --bamboo-line:rgba(81,125,111,.35);
+  --cinnabar:#b5442f; --cinnabar-soft:rgba(181,68,47,.10); --cinnabar-line:rgba(181,68,47,.42);
+  --amber:#d9a441; --amber-line:rgba(217,164,65,.4);
+  --line:#e2d8bf; --shadow:0 8px 26px rgba(96,76,40,.14); --shadow-s:0 3px 10px rgba(96,76,40,.10);
+  --ease:cubic-bezier(.25,.8,.3,1);
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
+  --sans:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --kai:"Kaiti SC","KaiTi","STKaiti","Kai",serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--sans);color:var(--ink);overflow:hidden;
+  background:
+    radial-gradient(900px 520px at 12% -6%, rgba(255,243,212,.95) 0%, transparent 62%),
+    radial-gradient(760px 560px at 108% 110%, rgba(214,198,160,.28) 0%, transparent 55%),
+    var(--paper);
+  background-image:
+    radial-gradient(900px 520px at 12% -6%, rgba(255,243,212,.95) 0%, transparent 62%),
+    radial-gradient(760px 560px at 108% 110%, rgba(214,198,160,.28) 0%, transparent 55%),
+    repeating-linear-gradient(0deg, rgba(120,100,70,.016) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(120,100,70,.012) 0 1px, transparent 1px 4px),
+    var(--paper);
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--bamboo);outline-offset:2px;border-radius:8px}
+
+/* ============ 开卷手帐骨架 ============ */
+.book{max-width:1280px;height:100vh;margin:0 auto;display:flex;flex-direction:column;padding:14px 18px 0}
+.spine{
+  display:flex;align-items:center;gap:8px;padding:4px 10px 12px;
+  font-family:var(--serif);
+}
+.spine .bookmark{font-size:15px;letter-spacing:.3em;color:var(--ink);margin-right:6px;white-space:nowrap}
+.spine .sp-nav{display:flex;gap:2px;flex:1}
+.spine .sp-btn{
+  padding:8px 20px;font-family:var(--serif);font-size:15px;letter-spacing:.2em;color:var(--ink-faint);
+  border-bottom:2px solid transparent;transition:all .3s var(--ease);
+}
+.spine .sp-btn:hover{color:var(--ink-dim)}
+.spine .sp-btn.on{color:var(--bamboo);border-bottom-color:var(--bamboo)}
+.spine .sp-hist{
+  padding:7px 16px;font-family:var(--serif);font-size:14px;letter-spacing:.14em;color:var(--ink-dim);
+  border:1px solid var(--line);border-radius:10px;background:var(--paper-light);box-shadow:var(--shadow-s);
+  transition:all .3s var(--ease);
+}
+.spine .sp-hist:hover{border-color:var(--bamboo-line);color:var(--bamboo)}
+
+.sheet{flex:1;display:flex;gap:18px;min-height:0}
+.page{
+  background:var(--paper-light);border:1px solid var(--line);border-radius:6px;
+  box-shadow:var(--shadow);position:relative;overflow:hidden;
+}
+.page::before{ /* 纸面微澜 */
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(300px 200px at 20% 8%, rgba(255,255,255,.5), transparent 60%);
+}
+.page-left{width:44%;min-width:380px;display:flex;flex-direction:column}
+.page-right{flex:1;display:flex;flex-direction:column;min-width:0}
+
+/* ============ 左页 · 肖像 ============ */
+.pl-portrait{position:relative;flex:1;min-height:0;overflow:hidden}
+.pl-portrait canvas{position:absolute;inset:0;width:100%;height:100%}
+#inkScroll{z-index:1}
+.lantern{position:absolute;left:26%;top:38%;width:132px;height:148px;z-index:2;transform:translate(-50%,-50%);pointer-events:none;transition:transform .7s var(--ease)}
+.lantern .pl-body{animation:plBreathe 5s ease-in-out infinite;transform-origin:60px 78px}
+@keyframes plBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.025,1.05)}}
+.lantern.lean-back{transform:translate(-50%,-50%) rotate(3deg) scale(.94)}
+.pl-caption{
+  position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;
+  font-family:var(--kai);font-size:15px;color:var(--ink-dim);letter-spacing:.3em;
+  padding:4px 18px;border-radius:99px;background:rgba(246,241,228,.82);border:1px solid var(--line);
+  white-space:nowrap;transition:color .5s;
+}
+.pl-caption.bamboo{color:var(--bamboo)}
+.pl-caption.cinnabar{color:var(--cinnabar)}
+
+/* 页边批注（感知流） */
+.margins{position:absolute;right:10px;top:12px;width:210px;z-index:4;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.mnote{
+  font-family:var(--kai);font-size:12.5px;line-height:1.8;color:var(--ink-dim);
+  background:rgba(252,248,238,.9);border-left:2px solid var(--amber-line);
+  padding:8px 12px;border-radius:0 10px 10px 0;box-shadow:var(--shadow-s);
+  animation:noteIn .6s var(--ease);
+}
+.mnote b{color:var(--bamboo);font-weight:normal}
+.mnote.fading{opacity:0;transition:opacity 1s}
+@keyframes noteIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+
+/* 步骤笺（执行链图例） */
+.steps{display:flex;gap:8px;padding:12px 16px 14px;flex-wrap:wrap;border-top:1px solid var(--line)}
+.slip{
+  font-family:var(--serif);font-size:14px;padding:5px 13px;border-radius:8px;letter-spacing:.1em;
+  color:var(--ink-faint);border:1px solid var(--line);background:rgba(250,246,236,.7);
+  transition:all .4s var(--ease);
+}
+.slip:hover{border-color:var(--bamboo-line)}
+.slip.active{color:var(--bamboo);border-color:var(--bamboo-line);background:var(--bamboo-soft);animation:slipPulse 1.6s ease-in-out infinite}
+.slip.done{color:var(--ink-dim);border-color:var(--line);background:rgba(81,125,111,.08)}
+.slip.waiting{color:var(--cinnabar);border-color:var(--cinnabar-line);background:var(--cinnabar-soft)}
+@keyframes slipPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.inknote{
+  margin:0 16px 12px;padding:10px 14px;border-radius:10px;background:rgba(250,246,236,.7);
+  border:1px solid var(--line);font-family:var(--kai);font-size:13px;line-height:1.8;color:var(--ink-dim);min-height:44px;
+}
+.inknote b{color:var(--bamboo);font-weight:normal}
+.inknote .d-tool{display:inline-block;margin-left:8px;padding:0 9px;border-radius:6px;font-family:var(--sans);font-size:11px;background:var(--bamboo-soft);color:var(--bamboo);border:1px solid var(--bamboo-line)}
+.inknote.empty{color:var(--ink-faint)}
+
+/* 朱砂落印（人的时刻） */
+.seal-moment{
+  position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.96);z-index:30;
+  width:min(340px,92%);padding:24px 24px 20px;border-radius:4px;
+  background:var(--paper-light);border:1px solid var(--cinnabar-line);
+  box-shadow:var(--shadow), 0 0 0 6px rgba(181,68,47,.05);
+  opacity:0;pointer-events:none;transition:opacity .5s var(--ease), transform .5s var(--ease);
+}
+.seal-moment.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+.seal-moment h4{font-family:var(--serif);font-size:14px;letter-spacing:.3em;color:var(--cinnabar);margin-bottom:12px;font-weight:600}
+.seal-moment p{font-family:var(--serif);font-size:15.5px;line-height:1.9;color:var(--ink)}
+.seal-btns{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.seal-btn{
+  padding:8px 16px;border-radius:6px;font-family:var(--serif);font-size:14px;letter-spacing:.14em;
+  color:var(--ink-dim);border:1px solid var(--line);background:rgba(250,246,236,.8);transition:all .25s var(--ease);
+}
+.seal-btn:hover{border-color:var(--bamboo-line);color:var(--ink)}
+.seal-btn.allow{
+  width:56px;height:56px;padding:0;border-radius:8px;font-size:26px;color:#fff;
+  background:var(--cinnabar);border:2px solid #a83a26;box-shadow:inset 0 0 0 2px rgba(255,255,255,.25), var(--shadow-s);
+  display:grid;place-items:center;font-family:var(--serif);
+}
+.seal-btn.allow:active{transform:scale(.94)}
+#stamp{
+  position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(1.6) rotate(-8deg);z-index:31;
+  width:74px;height:74px;border-radius:10px;background:var(--cinnabar);
+  border:2px solid #a83a26;box-shadow:inset 0 0 0 3px rgba(255,255,255,.28), 0 10px 30px rgba(120,40,25,.35);
+  display:grid;place-items:center;font-family:var(--serif);font-size:34px;color:#fdf3e3;
+  opacity:0;pointer-events:none;
+}
+#stamp.stamp-on{animation:stampFall .45s var(--ease) forwards}
+@keyframes stampFall{0%{opacity:0;transform:translate(-50%,-50%) scale(1.6) rotate(-14deg)}55%{opacity:1;transform:translate(-50%,-50%) scale(.96) rotate(-8deg)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-8deg)}}
+
+/* ============ 右页 · 信笺往来 ============ */
+.rpage{display:none;flex:1;flex-direction:column;min-height:0;padding:16px 20px 0;animation:pageIn .5s var(--ease)}
+.rpage.on{display:flex}
+@keyframes pageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.letters{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:6px 4px 14px;scrollbar-width:thin;scrollbar-color:rgba(81,125,111,.25) transparent}
+.letter{
+  max-width:78%;padding:13px 17px;position:relative;font-size:14.5px;line-height:1.85;
+  animation:letterIn .45s var(--ease);
+}
+@keyframes letterIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.letter.agent{align-self:flex-start;background:var(--paper-light);border:1px solid var(--line);border-radius:4px 14px 14px 4px;box-shadow:var(--shadow-s)}
+.letter.agent::before{
+  content:"满";position:absolute;left:-1px;top:-1px;width:22px;height:22px;border-radius:0 0 6px 0;
+  background:var(--bamboo);color:#fdf6e6;font-family:var(--serif);font-size:12px;display:grid;place-items:center;
+}
+.letter.user{align-self:flex-end;background:#f2e9d5;border:1px solid var(--line);border-radius:14px 4px 4px 14px;box-shadow:var(--shadow-s)}
+.letter.user::after{
+  content:"你";position:absolute;right:-1px;bottom:-1px;width:22px;height:22px;border-radius:6px 0 0 0;
+  background:var(--ink);color:var(--paper-light);font-family:var(--serif);font-size:12px;display:grid;place-items:center;
+}
+.letter.note{align-self:center;background:none;border:none;box-shadow:none;color:var(--ink-faint);font-family:var(--kai);font-size:12.5px;letter-spacing:.1em;max-width:90%}
+.inkstone{display:flex;gap:10px;padding:14px 0 18px;align-items:center}
+.inkstone input{
+  flex:1;padding:13px 18px;border-radius:10px;font-size:14.5px;font-family:var(--sans);
+  background:var(--paper-light);border:1px solid var(--line);border-bottom:2px solid var(--line);color:var(--ink);outline:none;
+  transition:border-color .3s, box-shadow .3s;
+}
+.inkstone input:focus{border-bottom-color:var(--bamboo);box-shadow:0 3px 0 rgba(81,125,111,.12)}
+.inkstone input::placeholder{color:var(--ink-faint)}
+.inkstone .searchK{padding:0 15px;border-radius:10px;font-family:var(--serif);font-size:13px;letter-spacing:.1em;color:var(--ink-faint);border:1px solid var(--line);height:46px;transition:all .3s}
+.inkstone .searchK:hover{color:var(--bamboo);border-color:var(--bamboo-line)}
+.inkstone .writeBtn{
+  height:46px;padding:0 22px;border-radius:10px;font-family:var(--serif);font-size:15px;letter-spacing:.24em;
+  color:#fdf6e6;background:var(--bamboo);box-shadow:var(--shadow-s);transition:transform .2s var(--ease), filter .3s;
+}
+.inkstone .writeBtn:hover{filter:brightness(1.06)}
+.inkstone .writeBtn:active{transform:scale(.95)}
+
+/* ============ 手帐视图（备忘/心愿/留痕） ============ */
+.rtabs{display:flex;gap:8px;margin-bottom:14px}
+.rtabs button{
+  padding:7px 18px;border-radius:99px;font-family:var(--serif);font-size:14px;letter-spacing:.16em;
+  color:var(--ink-faint);border:1px solid var(--line);background:rgba(250,246,236,.7);transition:all .3s var(--ease);
+}
+.rtabs button.on{color:var(--bamboo);border-color:var(--bamboo-line);background:var(--bamboo-soft)}
+.rtab{display:none;flex:1;overflow-y:auto;padding:2px 4px 18px;scrollbar-width:thin}
+.rtab.on{display:block}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.pcard{
+  padding:15px 17px;border-radius:4px;background:var(--paper-light);border:1px solid var(--line);
+  box-shadow:var(--shadow-s);font-size:13.5px;line-height:1.75;transition:all .3s var(--ease);
+}
+.pcard:hover{border-color:var(--bamboo-line);transform:translateY(-2px)}
+.pcard .pk{font-family:var(--serif);color:var(--bamboo);font-size:12.5px;letter-spacing:.12em;margin-bottom:6px}
+.pcard .pm{margin-top:8px;font-size:11.5px;color:var(--ink-faint);font-family:var(--kai)}
+.wish{margin-bottom:16px}
+.wish .wt{display:flex;justify-content:space-between;font-family:var(--serif);font-size:14px;margin-bottom:8px}
+.wish .wt span{color:var(--ink-faint);font-family:var(--sans);font-size:12.5px}
+.wish .rule{height:3px;border-radius:99px;background:rgba(150,130,90,.16);position:relative;overflow:visible}
+.wish .rule i{position:absolute;left:0;top:0;height:100%;border-radius:99px;background:linear-gradient(90deg, #e3bd72, var(--amber));box-shadow:0 0 8px rgba(217,164,65,.4);transition:width 1s var(--ease)}
+.wish .rule i::after{content:"✦";position:absolute;right:-9px;top:-6px;font-size:11px;color:var(--amber)}
+
+/* ============ 印鉴视图（治理） ============ */
+.govsec{margin-bottom:22px}
+.govsec h3{font-family:var(--serif);font-size:13px;letter-spacing:.24em;color:var(--ink-dim);margin-bottom:12px;font-weight:600}
+.govrow{
+  display:flex;align-items:center;gap:12px;padding:11px 15px;border-radius:4px;margin-bottom:8px;
+  background:var(--paper-light);border:1px solid var(--line);font-size:13.5px;box-shadow:var(--shadow-s);
+}
+.govrow .gmain{flex:1;min-width:0}
+.govrow .gmain b{font-weight:500}
+.govrow .gsub{font-size:11.5px;color:var(--ink-faint);margin-top:2px;font-family:var(--kai)}
+.govrow .sealmark{
+  width:30px;height:30px;flex:none;border-radius:5px;background:var(--cinnabar);
+  display:grid;place-items:center;font-family:var(--serif);font-size:16px;color:#fdf3e3;
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.2);
+}
+.govrow .tag{padding:2px 10px;border-radius:99px;font-size:11px;border:1px solid var(--bamboo-line);color:var(--bamboo);background:var(--bamboo-soft);white-space:nowrap}
+.govrow .tag.cin{border-color:var(--cinnabar-line);color:var(--cinnabar);background:var(--cinnabar-soft)}
+.govempty{padding:20px;border:1px dashed var(--line);color:var(--ink-faint);font-size:13px;text-align:center;border-radius:8px;font-family:var(--kai)}
+
+/* ============ 书签抽屉（历史） ============ */
+.bookmark-drawer{
+  position:fixed;top:0;right:0;height:100vh;width:320px;z-index:60;
+  background:var(--paper-light);border-left:1px solid var(--line);box-shadow:-24px 0 60px rgba(96,76,40,.2);
+  transform:translateX(100%);transition:transform .45s var(--ease);
+  display:flex;flex-direction:column;
+}
+.bookmark-drawer.open{transform:none}
+.bd-head{display:flex;align-items:center;justify-content:space-between;padding:20px 20px 12px}
+.bd-head b{font-family:var(--serif);font-size:15px;letter-spacing:.24em}
+.bd-head .x{width:32px;height:32px;border-radius:8px;color:var(--ink-faint);border:1px solid var(--line);font-size:14px}
+.bd-head .x:hover{color:var(--cinnabar);border-color:var(--cinnabar-line)}
+.bd-list{flex:1;overflow-y:auto;padding:4px 14px 18px;display:flex;flex-direction:column;gap:8px}
+.bmark{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:4px 10px 10px 4px;text-align:left;
+  background:var(--paper);border:1px solid var(--line);transition:all .3s var(--ease);
+}
+.bmark:hover{border-color:var(--bamboo-line);transform:translateX(-3px)}
+.bmark.cur{border-color:var(--bamboo-line);background:var(--bamboo-soft)}
+.bmark .bm-t{font-family:var(--serif);font-size:13.5px;color:var(--ink)}
+.bmark .bm-m{font-size:11.5px;color:var(--ink-faint);margin-top:3px;font-family:var(--kai)}
+.bmark .bm-x{font-size:11px;color:var(--bamboo);margin-top:5px;letter-spacing:.1em}
+
+/* ============ 检索面板（⌘K） ============ */
+.search-sheet{
+  position:fixed;inset:0;z-index:80;background:rgba(90,75,45,.24);backdrop-filter:blur(2px);
+  display:none;align-items:flex-start;justify-content:center;padding-top:12vh;
+}
+.search-sheet.open{display:flex;animation:pageIn .25s var(--ease)}
+.ssearch{
+  width:min(560px,90vw);border-radius:8px;overflow:hidden;
+  background:var(--paper-light);border:1px solid var(--bamboo-line);box-shadow:var(--shadow);
+}
+.ssearch input{
+  width:100%;padding:17px 22px;font-size:15px;font-family:var(--sans);color:var(--ink);
+  background:none;border:none;outline:none;border-bottom:1px solid var(--line);
+}
+.ssearch input::placeholder{color:var(--ink-faint)}
+.slist{max-height:320px;overflow-y:auto;padding:8px}
+.sgroup{font-family:var(--kai);font-size:12px;color:var(--ink-faint);letter-spacing:.2em;padding:10px 14px 5px}
+.sitem{
+  display:flex;align-items:center;gap:11px;width:100%;padding:11px 14px;border-radius:6px;
+  font-family:var(--serif);font-size:14px;color:var(--ink-dim);text-align:left;transition:background .15s;
+}
+.sitem .sico{width:20px;text-align:center;color:var(--bamboo);opacity:.7;font-family:var(--sans)}
+.sitem.sel{background:var(--bamboo-soft);color:var(--ink)}
+.sitem.sel .sico{opacity:1}
+.sempty{padding:26px;text-align:center;color:var(--ink-faint);font-size:13px;font-family:var(--kai)}
+
+/* ============ 演示条 ============ */
+.ribbon{
+  position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:70;
+  display:flex;gap:9px;padding:8px 12px;border-radius:99px;
+  background:rgba(250,246,236,.94);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(8px);
+}
+.ribbon button{
+  padding:7px 15px;border-radius:99px;font-family:var(--serif);font-size:13px;letter-spacing:.1em;
+  color:var(--ink-dim);border:1px solid var(--line);background:rgba(250,246,236,.8);transition:all .25s var(--ease);white-space:nowrap;
+}
+.ribbon button:hover{color:var(--bamboo);border-color:var(--bamboo-line)}
+.ribbon button.primary{color:var(--bamboo);border-color:var(--bamboo-line);background:var(--bamboo-soft)}
+.ribbon button:active{transform:scale(.95)}
+
+@media (max-width:980px){
+  .book{padding:10px 10px 0}
+  .sheet{flex-direction:column;gap:12px}
+  .page-left{width:100%;min-width:0;height:42vh}
+  .lantern{width:100px;height:112px}
+  .ribbon{max-width:94vw;flex-wrap:wrap;justify-content:center;border-radius:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div class="book">
+
+  <!-- 书脊导航 -->
+  <header class="spine">
+    <span class="bookmark">书灯 · 小满</span>
+    <nav class="sp-nav" aria-label="主导航">
+      <button class="sp-btn on" data-page="letters">信笺</button>
+      <button class="sp-btn" data-page="journal">手帐</button>
+      <button class="sp-btn" data-page="seals">印鉴</button>
+    </nav>
+    <button class="sp-hist" id="bmkOpen">☰ 书签</button>
+  </header>
+
+  <div class="sheet">
+
+    <!-- ═══ 左页 · 肖像 ═══ -->
+    <section class="page page-left">
+      <div class="pl-portrait">
+        <canvas id="inkScroll" aria-hidden="true"></canvas>
+
+        <!-- 纸灯精灵 小满 -->
+        <svg class="lantern" id="lantern" viewBox="0 0 120 148" aria-hidden="true">
+          <defs>
+            <radialGradient id="candle" cx="50%" cy="40%" r="65%">
+              <stop offset="0%" stop-color="#ffe9b0"/>
+              <stop offset="55%" stop-color="#ffd98f"/>
+              <stop offset="100%" stop-color="#ffcd78" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="paperG" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#fdf4da"/>
+              <stop offset="100%" stop-color="#f0dfb4"/>
+            </linearGradient>
+          </defs>
+          <g class="pl-body">
+            <!-- 顶穗 -->
+            <line x1="60" y1="14" x2="60" y2="26" stroke="#b08a4a" stroke-width="1.6"/>
+            <circle cx="60" cy="13" r="2.4" fill="#d9a441"/>
+            <!-- 顶盖 -->
+            <rect x="40" y="26" width="40" height="8" rx="3" fill="#e3c98f" stroke="#c9a864" stroke-width="1"/>
+            <!-- 灯体（宣纸折纸） -->
+            <rect id="paperBody" x="36" y="34" width="48" height="62" rx="6" fill="url(#paperG)" stroke="#d9c79e" stroke-width="1.2"/>
+            <line x1="60" y1="34" x2="60" y2="96" stroke="#dcc287" stroke-width=".8" opacity=".8"/>
+            <line x1="48" y1="34" x2="48" y2="96" stroke="#e2cca0" stroke-width=".6" opacity=".6"/>
+            <line x1="72" y1="34" x2="72" y2="96" stroke="#e2cca0" stroke-width=".6" opacity=".6"/>
+            <!-- 烛光（情绪） -->
+            <ellipse id="glowIn" cx="60" cy="64" rx="26" ry="30" fill="url(#candle)"/>
+            <!-- 眉眼 -->
+            <ellipse id="eL" cx="50" cy="60" rx="3.6" ry="4.6" fill="#3a362e"/>
+            <ellipse id="eR" cx="70" cy="60" rx="3.6" ry="4.6" fill="#3a362e"/>
+            <circle id="pL" cx="50.8" cy="58.8" r="1.1" fill="#fff6df"/>
+            <circle id="pR" cx="70.8" cy="58.8" r="1.1" fill="#fff6df"/>
+            <path id="browsL" d="M44 52 Q50 49 56 52" stroke="#3a362e" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+            <path id="browsR" d="M64 52 Q70 49 76 52" stroke="#3a362e" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+            <path id="mth" d="M54 76 Q60 81 66 76" stroke="#3a362e" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <path id="eyeArcsL" d="M46 61 Q50 57 54 61" stroke="#3a362e" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0"/>
+            <path id="eyeArcsR" d="M66 61 Q70 57 74 61" stroke="#3a362e" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0"/>
+            <!-- 底盖 + 流苏 -->
+            <rect x="40" y="96" width="40" height="7" rx="3" fill="#e3c98f" stroke="#c9a864" stroke-width="1"/>
+            <line x1="60" y1="103" x2="60" y2="116" stroke="#b08a4a" stroke-width="1.4"/>
+            <circle cx="60" cy="118" r="2.6" fill="#b5442f"/>
+          </g>
+        </svg>
+
+        <div class="caption pl-caption" id="plCap">我在纸边等你</div>
+        <div class="margins" id="margins"></div>
+
+        <!-- 朱砂落印 -->
+        <div class="seal-moment" id="sealM" role="dialog" aria-label="请你落印">
+          <h4>此笺 · 请你落印</h4>
+          <p id="sealQ"></p>
+          <div class="seal-btns">
+            <button class="seal-btn allow" data-d="confirm">允</button>
+            <button class="seal-btn" data-d="escalate">再改改</button>
+            <button class="seal-btn" data-d="defer">稍后再定</button>
+            <button class="seal-btn" data-d="cancel">先不安排</button>
+          </div>
+        </div>
+        <div id="stamp" aria-hidden="true">允</div>
+      </div>
+
+      <div class="inknote empty" id="inkNote">点选下方笔顺步骤，查看小满的听记与推理。</div>
+      <nav class="steps" id="steps" aria-label="笔顺执行链"></nav>
+    </section>
+
+    <!-- ═══ 右页 · 信笺 / 手帐 / 印鉴 ═══ -->
+    <section class="page page-right">
+      <!-- 信笺 -->
+      <div class="rpage on" id="pg-letters">
+        <div class="letters" id="letters" aria-live="polite"></div>
+        <div class="inkstone">
+          <input id="inp" placeholder="研墨，写下一句…" aria-label="输入">
+          <button class="searchK" id="searchB" title="检索 ⌘K">⌘K</button>
+          <button class="writeBtn" id="writeB">落笔</button>
+        </div>
+      </div>
+
+      <!-- 手帐 -->
+      <div class="rpage" id="pg-journal">
+        <nav class="rtabs" aria-label="手帐页签">
+          <button class="on" data-tab="mem">备忘</button>
+          <button data-tab="wish">心愿</button>
+          <button data-tab="trace">留痕</button>
+        </nav>
+        <div class="rtab on" id="rt-mem"><div class="pgrid" id="memGrid"></div></div>
+        <div class="rtab" id="rt-wish"><div id="wishList" style="padding:4px 4px 18px"></div></div>
+        <div class="rtab" id="rt-trace"><div class="pgrid" id="traceGrid"></div></div>
+      </div>
+
+      <!-- 印鉴 -->
+      <div class="rpage" id="pg-seals">
+        <div class="govsec">
+          <h3>记忆印 · 小满知道什么</h3>
+          <div id="govMem"></div>
+        </div>
+        <div class="govsec">
+          <h3>印鉴簿 · 你落下的每一次印</h3>
+          <div id="govLog"><div class="govempty">尚无落印。播放「协作」场景后，每一枚决策印都会盖在这里。</div></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- 书签抽屉 -->
+<aside class="bookmark-drawer" id="bmkDrawer" aria-label="历史书签">
+  <header class="bd-head"><b>书签 · 历史</b><button class="x" id="bmkClose" aria-label="关闭">✕</button></header>
+  <div class="bd-list" id="bmkList"></div>
+</aside>
+
+<!-- 检索面板 -->
+<div class="search-sheet" id="searchSheet">
+  <div class="ssearch" role="dialog" aria-label="检索面板">
+    <input id="sInp" placeholder="检索笔迹、备忘、书签…" aria-label="检索">
+    <div class="slist" id="sList"></div>
+  </div>
+</div>
+
+<!-- 演示条 -->
+<div class="ribbon" role="toolbar" aria-label="场景演示">
+  <button id="runB" class="primary">▶ 协作：安排周末</button>
+  <button id="senseB">页边批注</button>
+  <button id="loopB">烛光闭环</button>
+  <button id="resetB">重置</button>
+</div>
+
+<script>
+'use strict';
+function $(id){return document.getElementById(id);}
+var timers=[];
+function later(ms,fn){var t=setTimeout(fn,ms);timers.push(t);return t;}
+function clearTimers(){timers.forEach(function(t){clearTimeout(t);});timers=[];}
+var RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ============ 笔顺执行链数据 ============ */
+var STEPS=[
+  {id:'listen',ch:'聆',t:.06,tool:'听记',note:'把「安排一个放松的周末」听成：减压型周末，含节奏与去处。'},
+  {id:'recall',ch:'忆',t:.21,tool:'翻忆',note:'翻出三页旧记：爱温泉、怕吵、连加班四日。'},
+  {id:'weigh',ch:'衡',t:.36,tool:'权衡',note:'山野温泉/城市SPA/宅家三案并称，按安静·省力·新鲜排序。'},
+  {id:'draft',ch:'拟',t:.51,tool:'拟稿',note:'拟成两日笺：周六山野温泉，周日宅家修复。'},
+  {id:'check',ch:'校',t:.66,tool:'校阅',note:'校对预算/车程/午休，无再问之疑。'},
+  {id:'offer',ch:'呈',t:.81,tool:'呈笺',note:'此事涉你时间与花费，呈笺请你落印。'},
+  {id:'settle',ch:'存',t:.95,tool:'归档',note:'落印后存入留痕，烛光回暖，回到陪伴。'}
+];
+var status={},inkP={};
+STEPS.forEach(function(s){status[s.id]='pending';inkP[s.id]=0;});
+
+/* ============ 情绪状态机（烛光 + 眉眼 + 批注） ============ */
+var MOODS={
+  neutral:{glow:.55,cap:'我在纸边等你',cls:''},
+  thinking:{glow:.85,cap:'我在听…',cls:'bamboo'},
+  speaking:{glow:.72,cap:'听我说',cls:'bamboo'},
+  waiting:{glow:1.0,cap:'等你落印',cls:'cinnabar'},
+  happy:{glow:.95,cap:'写好了',cls:'bamboo'},
+  concerned:{glow:.42,cap:'我有点在意',cls:'bamboo'},
+  rest:{glow:.26,cap:'我在纸边陪你',cls:''}
+};
+function setMood(m){
+  var d=MOODS[m]||MOODS.neutral;
+  $('glowIn').style.opacity=d.glow;
+  var c=$('plCap');c.textContent=d.cap;c.className='caption pl-caption'+(d.cls?' '+d.cls:'');
+  var mth=$('mth');
+  if(m==='happy'){mth.setAttribute('d','M52 75 Q60 84 68 75');}
+  else if(m==='concerned'){mth.setAttribute('d','M53 80 Q60 75 67 80');}
+  else{mth.setAttribute('d','M54 76 Q60 81 66 76');}
+  var ang=m==='concerned'?-1:0;
+  $('browsL').setAttribute('d',ang<0?'M43 53 Q50 51 57 53':'M44 52 Q50 49 56 52');
+  $('browsR').setAttribute('d',ang<0?'M63 53 Q70 51 77 53':'M64 52 Q70 49 76 52');
+  var closed=(m==='rest');
+  $('eL').style.opacity=closed?0:1;$('eR').style.opacity=closed?0:1;
+  $('pL').style.opacity=closed?0:1;$('pR').style.opacity=closed?0:1;
+  $('eyeArcsL').style.opacity=closed?1:0;$('eyeArcsR').style.opacity=closed?1:0;
+  $('lantern').classList.toggle('lean-back',m==='waiting');
+}
+
+/* ============ 笔顺墨迹画布 ============ */
+var INK=(function(){
+  var c=$('inkScroll'),x=c.getContext('2d');
+  var CP=[[.06,.10],[.30,.04],[.68,.18],[.30,.40],[.66,.62],[.30,.84],[.72,1.02],[1.0,.96]];
+  var W=0,H=0,bloom={id:null,t:0};
+  function pts(){return CP.map(function(p){return [p[0]*W,p[1]*H];});}
+  function catmull(P,t){
+    var n=P.length-1,f=t*n,i=Math.floor(f);
+    if(i>=n)i=n-1;var u=f-i;
+    var p0=P[Math.max(i-1,0)],p1=P[i],p2=P[Math.min(i+1,n)],p3=P[Math.min(i+2,n)];
+    function cr(a,b,cc,d,uu){
+      var v=uu*uu,vv=uu*uu*uu;
+      return .5*((2*b)+(-a+cc)*uu+(2*a-5*b+4*cc-d)*v+(-a+3*b-3*cc+d)*vv);
+    }
+    return [cr(p0[0],p1[0],p2[0],p3[0],u),cr(p0[1],p1[1],p2[1],p3[1],u)];
+  }
+  function anchor(id){
+    var s=null;STEPS.forEach(function(q){if(q.id===id)s=q;});
+    return s?catmull(pts(),s.t):[0,0];
+  }
+  function resize(){
+    var r=c.parentElement.getBoundingClientRect();
+    W=r.width;H=r.height;c.width=W;c.height=H;
+  }
+  function segPoints(i,n){
+    var out=[],a=catmull(pts(),STEPS[i-1].t),b=catmull(pts(),STEPS[i].t);
+    for(var k=0;k<=n;k++){
+      var u=k/n;
+      out.push([a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u]);
+    }
+    return out;
+  }
+  function draw(time){
+    x.clearRect(0,0,W,H);
+    /* 草稿线（全程若隐若现） */
+    x.strokeStyle='rgba(90,80,60,.07)';x.lineWidth=1.4;x.lineCap='round';x.setLineDash([4,6]);
+    x.beginPath();
+    STEPS.forEach(function(s){var p=catmull(pts(),s.t);if(s.id==='listen')x.moveTo(p[0],p[1]);else x.lineTo(p[0],p[1]);});
+    x.stroke();x.setLineDash([]);
+    /* 墨线（已写部分） */
+    x.strokeStyle='rgba(58,54,46,.82)';x.lineWidth=2.4;x.lineCap='round';
+    for(var i=1;i<STEPS.length;i++){
+      var id=STEPS[i].id;
+      if(status[id]==='pending'&&inkP[id]<=0)continue;
+      var frac=(status[id]==='done')?1:inkP[id];
+      if(frac<=0)continue;
+      var ptsA=segPoints(i,26);
+      var cnt=Math.max(2,Math.floor(ptsA.length*frac));
+      x.beginPath();x.moveTo(ptsA[0][0],ptsA[0][1]);
+      for(var k=1;k<cnt;k++)x.lineTo(ptsA[k][0],ptsA[k][1]);
+      x.stroke();
+    }
+    /* 墨点晕开 + 锚点状态 */
+    for(var j=0;j<STEPS.length;j++){
+      var s2=STEPS[j],p2=catmull(pts(),s2.t),st=status[s2.id];
+      if(st==='pending'){ /* 淡墨待写 */
+        x.fillStyle='rgba(58,54,46,.14)';
+        x.beginPath();x.arc(p2[0],p2[1],2.6,0,6.283);x.fill();
+      }else if(st==='active'){
+        var bp=bloom.id===s2.id?Math.min(1,(time-bloom.t)/380):1;
+        if(RM)bp=1;
+        var g=x.createRadialGradient(p2[0],p2[1],0,p2[0],p2[1],16*bp);
+        g.addColorStop(0,'rgba(58,54,46,'+(.5*bp)+')');
+        g.addColorStop(1,'rgba(58,54,46,0)');
+        x.fillStyle=g;
+        x.beginPath();x.arc(p2[0],p2[1],16*bp,0,6.283);x.fill();
+        x.strokeStyle='rgba(81,125,111,.8)';x.lineWidth=2;
+        x.beginPath();x.arc(p2[0],p2[1],5+Math.sin(time*.006)*1.6,0,6.283);x.stroke();
+      }else if(st==='done'){
+        x.fillStyle='rgba(58,54,46,.9)';
+        x.beginPath();x.arc(p2[0],p2[1],3.6,0,6.283);x.fill();
+        x.strokeStyle='rgba(81,125,111,.5)';x.lineWidth=1.4;
+        x.beginPath();x.arc(p2[0],p2[1],7,0,6.283);x.stroke();
+      }else if(st==='waiting'){ /* 空心朱砂印 · 待印 */
+        var pu=1+Math.sin(time*.005)*.06;
+        var s3=16*pu;
+        x.strokeStyle='rgba(181,68,47,.9)';x.lineWidth=2;
+        x.strokeRect(p2[0]-s3/2,p2[1]-s3/2,s3,s3);
+        x.fillStyle='rgba(181,68,47,.25)';
+        x.fillRect(p2[0]-s3/2,p2[1]-s3/2,s3,s3);
+      }
+    }
+  }
+  function loop(t){draw(t);if(!RM)requestAnimationFrame(loop);}
+  window.addEventListener('resize',resize);
+  resize();draw(0);if(!RM)requestAnimationFrame(loop);
+  return {
+    anchor:anchor,
+    activate:function(id,cb){
+      status[id]='active';
+      renderSteps();
+      bloom={id:id,t:performance.now()};
+      if(RM){inkP[id]=1;status[id]='done';renderSteps();if(cb)cb();return;}
+      var iv=setInterval(function(){
+        inkP[id]+=.02;
+        if(inkP[id]>=1){
+          clearInterval(iv);
+          status[id]='done';
+          renderSteps();
+          if(cb)cb();
+        }
+      },16);
+    },
+    settleAll:function(){STEPS.forEach(function(s){if(status[s.id]==='done'||status[s.id]==='waiting')inkP[s.id]=1;});},
+    reset:function(){inkP={};STEPS.forEach(function(s){inkP[s.id]=0;});}
+  };
+})();
+
+/* ============ 步骤笺 + 详情 ============ */
+function renderSteps(){
+  var el=$('steps');el.innerHTML='';
+  STEPS.forEach(function(s){
+    var b=document.createElement('button');
+    b.className='slip'+(status[s.id]==='pending'?'':' '+status[s.id]);
+    b.id='slip-'+s.id;b.textContent=s.ch;
+    b.setAttribute('aria-label',s.ch+'·'+status[s.id]);
+    b.onclick=function(){inspectStep(s.id);};
+    el.appendChild(b);
+  });
+}
+function inspectStep(id){
+  var s=null;STEPS.forEach(function(q){if(q.id===id)s=q;});
+  if(!s)return;
+  var d=$('inkNote');d.className='inknote';
+  d.innerHTML='<b>'+s.ch+' · '+s.tool+'</b><span class="d-tool">'+status[id]+'</span><br>'+s.note;
+}
+
+/* ============ 落印（人的时刻） ============ */
+var sealCb=null;
+function showSeal(q,cb){
+  $('sealQ').textContent=q;
+  $('sealM').classList.add('show');
+  sealCb=cb||null;
+  setMood('waiting');
+}
+function hideSeal(){$('sealM').classList.remove('show');}
+var SEAL_TXT={confirm:'允 · 按此执行',escalate:'改 · 再调细节',defer:'缓 · 稍后再定',cancel:'否 · 先不安排'};
+Array.prototype.forEach.call(document.querySelectorAll('.seal-btn'),function(b){
+  b.onclick=function(){
+    var d=b.getAttribute('data-d');
+    if(d==='confirm'){
+      var st=$('stamp');st.classList.add('stamp-on');
+      later(650,function(){st.classList.remove('stamp-on');});
+    }
+    logSeal($('sealQ').textContent,SEAL_TXT[d]||d);
+    hideSeal();
+    if(sealCb){var cb=sealCb;sealCb=null;cb(d);}
+  };
+});
+function logSeal(q,d){
+  var box=$('govLog');
+  var emp=box.querySelector('.govempty');if(emp)emp.remove();
+  var row=document.createElement('div');row.className='govrow';
+  var ts=new Date().toTimeString().slice(0,5);
+  row.innerHTML='<div class="sealmark">印</div><div class="gmain"><b>'+q.slice(0,24)+(q.length>24?'…':'')+'</b><div class="gsub">'+ts+' · 笔顺「呈」· 落印</div></div><span class="tag cin">'+d+'</span>';
+  box.insertBefore(row,box.firstChild);
+}
+
+/* ============ 信笺 + 页边批注 ============ */
+function addLetter(role,text){
+  var el=document.createElement('div');
+  el.className='letter '+role;el.textContent=text;
+  $('letters').appendChild(el);
+  $('letters').scrollTop=$('letters').scrollHeight;
+}
+function addNoteL(text){
+  var el=document.createElement('div');
+  el.className='letter note';el.textContent=text;
+  $('letters').appendChild(el);
+}
+function marginNote(text){
+  var el=document.createElement('div');
+  el.className='mnote';
+  el.innerHTML='<b>小满注意到</b>：'+text;
+  $('margins').appendChild(el);
+  later(9000,function(){el.classList.add('fading');later(1000,function(){if(el.parentNode)el.parentNode.removeChild(el);});});
+}
+function userWrite(){
+  var v=$('inp').value.trim();
+  if(!v)return;
+  $('inp').value='';
+  addLetter('user',v);
+  setMood('thinking');
+  later(900,function(){
+    setMood('speaking');
+    addLetter('agent','收到。这封信我来回——先想想从哪里落笔。');
+    later(600,function(){setMood('neutral');});
+  });
+}
+
+/* ============ 页面 / 页签 / 抽屉 ============ */
+function setPage(name){
+  document.querySelectorAll('.sp-btn').forEach(function(b){
+    b.classList.toggle('on',b.getAttribute('data-page')===name);
+  });
+  document.querySelectorAll('.rpage').forEach(function(p){p.classList.remove('on');});
+  var t=$('pg-'+name);if(t)t.classList.add('on');
+}
+document.querySelectorAll('.sp-btn').forEach(function(b){
+  b.onclick=function(){setPage(b.getAttribute('data-page'));};
+});
+document.querySelectorAll('.rtabs button').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('.rtabs button').forEach(function(q){q.classList.remove('on');});
+    b.classList.add('on');
+    document.querySelectorAll('.rtab').forEach(function(q){q.classList.remove('on');});
+    var t=$('rt-'+b.getAttribute('data-tab'));if(t)t.classList.add('on');
+  };
+});
+function toggleDrawer(open){$('bmkDrawer').classList.toggle('open',open);}
+$('bmkOpen').onclick=function(){toggleDrawer(true);};
+$('bmkClose').onclick=function(){toggleDrawer(false);};
+
+/* ============ 手帐数据 ============ */
+var MEMS=[
+  {k:'休息偏好',v:'喜欢安静、人少的地方；对噪音敏感。',m:'三日前 · 对话'},
+  {k:'健康习惯',v:'每晚 23:00 前入睡的目标进行中。',m:'本周 · 心愿'},
+  {k:'旅行偏好',v:'偏爱温泉与山野，车程 2 小时内。',m:'两周前 · 对话'},
+  {k:'工作节奏',v:'本周连续加班 4 天，处于疲劳累积期。',m:'昨日 · 感知'},
+  {k:'饮食',v:'清淡为主，少辣。',m:'一周前 · 对话'}
+];
+var WISHES=[
+  {n:'周末彻底放松一次',p:60},
+  {n:'23:00 前入睡（本周）',p:45},
+  {n:'读完《置身事内》第 4 章',p:30}
+];
+var TRACES=[
+  {k:'🧭 山野温泉两日行程',m:'草案 · 待落印'},
+  {k:'📋 周中减压清单',m:'已归档'},
+  {k:'🗒 睡眠记录 · 本周',m:'进行中'}
+];
+var BMKS=[
+  {t:'安排放松的周末',m:'今日 · 6 笺',x:'协作中'},
+  {t:'周中减压计划',m:'昨日 · 12 笺',x:'已归档'},
+  {t:'睡眠习惯调整',m:'三日前 · 8 笺',x:'长期'},
+  {t:'旅行偏好整理',m:'两周前 · 15 笺',x:'已归档'}
+];
+function renderJournal(){
+  var mg=$('memGrid');mg.innerHTML='';
+  MEMS.forEach(function(m){
+    var el=document.createElement('div');el.className='pcard';
+    el.innerHTML='<div class="pk">'+m.k+'</div>'+m.v+'<div class="pm">'+m.m+'</div>';
+    mg.appendChild(el);
+  });
+  var wl=$('wishList');wl.innerHTML='';
+  WISHES.forEach(function(w){
+    var el=document.createElement('div');el.className='wish';
+    el.innerHTML='<div class="wt"><b style="font-weight:500">'+w.n+'</b><span>'+w.p+'%</span></div><div class="rule"><i style="width:'+w.p+'%"></i></div>';
+    wl.appendChild(el);
+  });
+  var tg=$('traceGrid');tg.innerHTML='';
+  TRACES.forEach(function(t){
+    var el=document.createElement('div');el.className='pcard';
+    el.innerHTML='<div class="pk">'+t.k+'</div><div class="pm">'+t.m+'</div>';
+    tg.appendChild(el);
+  });
+  var bl=$('bmkList');bl.innerHTML='';
+  BMKS.forEach(function(b,i){
+    var el=document.createElement('button');el.className='bmark'+(i===0?' cur':'');
+    el.innerHTML='<div style="flex:1;text-align:left"><div class="bm-t">'+b.t+'</div><div class="bm-m">'+b.m+'</div><div class="bm-x">'+b.x+'</div></div>';
+    el.onclick=function(){
+      toggleDrawer(false);
+      addNoteL('已翻到书签：'+b.t);
+    };
+    bl.appendChild(el);
+  });
+  var gm=$('govMem');gm.innerHTML='';
+  MEMS.forEach(function(m){
+    var el=document.createElement('div');el.className='govrow';
+    el.innerHTML='<div class="sealmark" style="background:var(--bamboo)">记</div><div class="gmain"><b>'+m.k+'</b><div class="gsub">'+m.v+'</div></div><span class="tag">'+m.m+'</span>';
+    gm.appendChild(el);
+  });
+}
+
+/* ============ 检索面板（⌘K） ============ */
+var SEARCH_ITEMS=[
+  {g:'笔迹',ico:'✍',t:'安排一次旅行'},
+  {g:'笔迹',ico:'📅',t:'规划本周日程'},
+  {g:'笔迹',ico:'🌿',t:'给我放松建议'},
+  {g:'笔迹',ico:'💗',t:'健康作息提醒'},
+  {g:'笔迹',ico:'📖',t:'制定学习计划'},
+  {g:'笔迹',ico:'💬',t:'陪我说说话'},
+  {g:'笔迹',ico:'💾',t:'记住一条偏好'},
+  {g:'备忘',ico:'◆',t:'休息偏好：安静人少'},
+  {g:'备忘',ico:'◆',t:'旅行偏好：温泉山野'},
+  {g:'书签',ico:'▸',t:'周中减压计划'},
+  {g:'书签',ico:'▸',t:'睡眠习惯调整'}
+];
+var sSel=0,sFiltered=SEARCH_ITEMS;
+function renderSearch(){
+  var q=$('sInp').value.trim().toLowerCase();
+  sFiltered=SEARCH_ITEMS.filter(function(it){return !q||it.t.toLowerCase().indexOf(q)>=0||it.g.indexOf(q)>=0;});
+  if(sSel>=sFiltered.length)sSel=Math.max(0,sFiltered.length-1);
+  var L=$('sList');L.innerHTML='';
+  if(!sFiltered.length){L.innerHTML='<div class="sempty">纸页翻尽，未有所得</div>';return;}
+  var lastG='';
+  sFiltered.forEach(function(it,i){
+    if(it.g!==lastG){
+      lastG=it.g;
+      var g=document.createElement('div');g.className='sgroup';g.textContent=it.g;L.appendChild(g);
+    }
+    var b=document.createElement('button');
+    b.className='sitem'+(i===sSel?' sel':'');
+    b.innerHTML='<span class="sico">'+it.ico+'</span><span>'+it.t+'</span>';
+    b.onclick=function(){pickSearch(i);};
+    L.appendChild(b);
+  });
+}
+function openSearch(){
+  $('searchSheet').classList.add('open');
+  $('sInp').value='';sSel=0;renderSearch();
+  later(30,function(){$('sInp').focus();});
+}
+function closeSearch(){$('searchSheet').classList.remove('open');}
+function pickSearch(i){
+  var it=sFiltered[i];if(!it)return;
+  closeSearch();
+  dispatch(it.t);
+}
+$('searchB').onclick=openSearch;
+$('searchSheet').onclick=function(e){if(e.target===$('searchSheet'))closeSearch();};
+$('sInp').oninput=function(){sSel=0;renderSearch();};
+$('sInp').onkeydown=function(e){
+  if(e.key==='ArrowDown'){e.preventDefault();sSel=Math.min(sSel+1,sFiltered.length-1);renderSearch();}
+  else if(e.key==='ArrowUp'){e.preventDefault();sSel=Math.max(sSel-1,0);renderSearch();}
+  else if(e.key==='Enter'){e.preventDefault();pickSearch(sSel);}
+};
+window.addEventListener('keydown',function(e){
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('searchSheet').classList.contains('open')?closeSearch():openSearch();}
+  else if(e.key==='Escape'){closeSearch();toggleDrawer(false);hideSeal();}
+});
+
+/* ============ 统一入口 ============ */
+function dispatch(text){
+  closeSearch();toggleDrawer(false);
+  setPage('letters');
+  $('inp').value=text;
+  userWrite();
+}
+
+/* ============ 场景：协作完成任务 ============ */
+function runChain(){
+  resetAll();
+  setPage('letters');
+  addLetter('user','帮我安排一个放松的周末');
+  setMood('thinking');
+  later(600,function(){INK.activate('listen');});
+  later(1500,function(){
+    INK.activate('recall');
+    marginNote('三日前 · 温泉偏好；二日前 · 怕吵；本周 · 连加班四日。');
+    addLetter('agent','我翻到了三页旧记：你喜欢温泉、怕吵，这周又连加了四天班——这封信我按「安静又省力」来写。');
+  });
+  later(2600,function(){INK.activate('weigh');});
+  later(3600,function(){
+    INK.activate('draft');
+    setMood('speaking');
+    addLetter('agent','拟稿如下：周六山野温泉（车程 1.5 小时，午后静休），周日完全宅家修复。预算在你的常规区间内。');
+  });
+  later(4700,function(){INK.activate('check');});
+  later(5600,function(){
+    INK.activate('offer',function(){
+      setStatus('offer','waiting');
+      showSeal('两日笺：周六山野温泉 + 周日宅家修复。此笺请你落印——',function(d){
+        if(d==='confirm'){
+          addLetter('agent','已落印。这封信存入留痕，周六早上我会把出发时间提前搁在你枕边。');
+          setStatus('offer','done');
+          later(500,function(){
+            INK.activate('settle');
+            later(1100,function(){
+              setStatus('settle','done');
+              setMood('happy');
+              addNoteL('笔顺走完 · 墨迹归档 · 烛光回暖');
+              INK.settleAll();
+            });
+          });
+        }else if(d==='escalate'){
+          addLetter('agent','好，我们重拟细节——你想改哪一处？');
+          setStatus('offer','done');
+          setMood('neutral');
+        }else if(d==='defer'){
+          addLetter('agent','不急。草稿我先夹进留痕，你想好了随时落印。');
+          setStatus('offer','done');
+          setMood('neutral');
+        }else{
+          addLetter('agent','明白，这次先不安排。你累这件事，我记着。');
+          setStatus('offer','done');
+          setMood('concerned');
+          later(1500,function(){setMood('rest');});
+        }
+      });
+    });
+  });
+}
+
+/* ============ 场景：主动感知（页边批注） ============ */
+function sense(){
+  setPage('letters');
+  marginNote('最近三天都在 23:30 后入睡，与「23:00 前入睡」心愿偏离。');
+  setMood('concerned');
+  later(1600,function(){
+    addLetter('agent','不是要说教。只是这三天你的入睡时刻一直往后滑——今晚要不要我把提醒挪到 22:40？轻一点的那种。');
+  });
+  later(4000,function(){setMood('rest');});
+}
+
+/* ============ 场景：情感闭环 ============ */
+function loop(){
+  setMood('happy');
+  addLetter('agent','今天帮你的周末落了印，我自己也亮了亮。');
+  later(2400,function(){
+    setMood('rest');
+    addNoteL('烛光回到微亮 · 纸面静息');
+  });
+}
+
+/* ============ 重置 ============ */
+function resetAll(){
+  clearTimers();
+  hideSeal();
+  STEPS.forEach(function(s){status[s.id]='pending';});
+  INK.reset();
+  renderSteps();
+  $('letters').innerHTML='';$('margins').innerHTML='';
+  $('inkNote').className='inknote empty';
+  $('inkNote').textContent='点选下方笔顺步骤，查看小满的听记与推理。';
+  setMood('neutral');
+}
+$('runB').onclick=runChain;
+$('senseB').onclick=sense;
+$('loopB').onclick=loop;
+$('resetB').onclick=resetAll;
+$('writeB').onclick=userWrite;
+$('inp').addEventListener('keydown',function(e){if(e.key==='Enter')userWrite();});
+
+/* ============ 双眼随标 ============ */
+(function(){
+  var eL={x:50,y:60},eR={x:70,y:60};
+  window.addEventListener('mousemove',function(e){
+    var r=$('lantern').getBoundingClientRect();
+    var dx=(e.clientX-(r.left+r.width/2))/(r.width),dy=(e.clientY-(r.top+r.height/2))/(r.height);
+    var mx=Math.max(-1.5,Math.min(1.5,dx*4)),my=Math.max(-1.2,Math.min(1.2,dy*4));
+    $('pL').setAttribute('cx',eL.x+mx);$('pL').setAttribute('cy',eL.y+my);
+    $('pR').setAttribute('cx',eR.x+mx);$('pR').setAttribute('cy',eR.y+my);
+  });
+})();
+
+/* ============ 初始化 ============ */
+function setStatus(id,st){status[id]=st;renderSteps();inspectStep(id);}
+renderSteps();
+renderJournal();
+setMood('neutral');
+addNoteL('书灯 · 全新重构原型：信笺往来 · 笔顺成墨 · 朱砂落印');
+addLetter('agent','你好，我是小满——一盏住在书页里的纸灯。左边的墨迹是我在想，页边的小字是我在留意；需要落笔的事，会呈到你面前请你落印。');
+</script>
+</body>
+</html>

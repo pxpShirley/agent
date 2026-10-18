@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖光 · 系统架构图</title>
+<style>
+  :root{
+    /* —— 品牌色：严格遵循「冰青=系统语言 / 暖金=仅人的环与待确认」 —— */
+    --bg-0:#05080f;
+    --bg-1:#0a1020;
+    --bg-2:#0d1526;
+    --text:#e9f1ff;
+    --muted:#8ba0c2;
+    --muted-2:#6b7f9f;
+    --cyan:#6fd6ff;      /* 冰青 · 客户端/系统 */
+    --teal:#5ee6c0;      /* 流传输 */
+    --azure:#7fb0ff;     /* 服务端 */
+    --violet:#b48cff;    /* 数据层 */
+    --gold:#f6c062;      /* 暖金 · 仅「人的环 / 待确认」 */
+    --card:rgba(255,255,255,.028);
+    --card-2:rgba(255,255,255,.05);
+    --line:rgba(140,175,225,.16);
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 700px at 12% -8%, rgba(111,214,255,.13), transparent 60%),
+      radial-gradient(1000px 620px at 92% 8%, rgba(180,140,255,.11), transparent 62%),
+      radial-gradient(900px 600px at 50% 110%, rgba(246,192,98,.07), transparent 60%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1) 40%,var(--bg-2));
+    background-attachment:fixed;
+    min-height:100vh;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 极轻的星点背景，呼应产品 */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      radial-gradient(1.4px 1.4px at 12% 18%, rgba(255,255,255,.55), transparent),
+      radial-gradient(1px 1px at 32% 62%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1.6px 1.6px at 58% 26%, rgba(255,255,255,.5), transparent),
+      radial-gradient(1px 1px at 76% 72%, rgba(255,255,255,.35), transparent),
+      radial-gradient(1.2px 1.2px at 88% 40%, rgba(255,255,255,.45), transparent),
+      radial-gradient(1px 1px at 45% 85%, rgba(255,255,255,.3), transparent);
+    opacity:.5;
+  }
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:44px 24px 70px}
+
+  /* ============ 头部 ============ */
+  header{text-align:center;margin-bottom:34px}
+  .kicker{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.18em;color:var(--cyan);
+    padding:6px 14px;border-radius:999px;
+    border:1px solid rgba(111,214,255,.3);background:rgba(111,214,255,.07);
+  }
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+  h1{font-size:40px;margin:16px 0 8px;letter-spacing:.02em;font-weight:800;
+     background:linear-gradient(92deg,#fff 10%,#bfe4ff 55%,#c9b2ff 95%);
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:14.5px;max-width:760px;margin:0 auto}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
+  .meta span{font-size:11.5px;color:var(--muted);padding:5px 12px;border-radius:999px;
+    border:1px solid var(--line);background:var(--card)}
+
+  /* ============ 图例 ============ */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:26px 0 8px}
+  .lg{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+      padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card)}
+  .sw{width:10px;height:10px;border-radius:3px}
+
+  /* ============ 层卡片 ============ */
+  .layer{
+    position:relative;border-radius:var(--radius);padding:20px 22px 22px;margin-top:20px;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter:blur(6px);
+  }
+  .layer::before{ /* 顶部彩条 */
+    content:"";position:absolute;left:0;top:0;height:3px;width:100%;border-radius:var(--radius) var(--radius) 0 0;
+    background:linear-gradient(90deg,var(--accent),transparent 78%);
+  }
+  .lhead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .lbadge{
+    display:grid;place-items:center;width:34px;height:34px;border-radius:10px;flex-shrink:0;
+    background:color-mix(in srgb,var(--accent) 16%, transparent);
+    border:1px solid color-mix(in srgb,var(--accent) 34%, transparent);
+    color:var(--accent);font-weight:800;font-size:14px;
+  }
+  .ltitle{font-size:18px;font-weight:700;letter-spacing:.01em}
+  .lpath{font-size:11.5px;color:var(--muted-2);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+  .ldesc{color:var(--muted);font-size:12.8px;margin:0 0 4px}
+
+  .grid{display:grid;gap:12px;margin-top:14px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  .box{
+    border-radius:13px;padding:13px 15px;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);
+    transition:transform .2s var(--ease), border-color .2s var(--ease);
+  }
+  .box:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  .box .bt{font-size:13.5px;font-weight:700;color:var(--tcol,var(--text));display:flex;align-items:center;gap:7px}
+  .box .bd{font-size:11.6px;color:var(--muted);margin-top:4px;line-height:1.55}
+  .code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10.8px;color:var(--accent)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{font-size:10.8px;padding:4px 10px;border-radius:999px;color:var(--tcol,var(--text));
+    border:1px solid color-mix(in srgb,var(--tcol,var(--accent)) 30%,transparent);
+    background:color-mix(in srgb,var(--tcol,var(--accent)) 10%,transparent);white-space:nowrap}
+
+  /* 人环 / 待确认 专属金色 */
+  .human{--tcol:var(--gold);border-color:color-mix(in srgb,var(--gold) 40%,transparent);
+    background:linear-gradient(180deg,rgba(246,192,98,.08),rgba(246,192,98,.02));
+    box-shadow:0 0 30px -18px var(--gold)}
+
+  /* ============ 连接线 ============ */
+  .flow{display:flex;align-items:center;gap:14px;margin:2px 0;padding:0 6px}
+  .flow .line{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);position:relative}
+  .flow .line::after{content:"";position:absolute;right:-1px;top:-3px;border-left:6px solid var(--muted-2);
+    border-top:3.5px solid transparent;border-bottom:3.5px solid transparent}
+  .flow .tag{
+    display:inline-flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);white-space:nowrap;
+    padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(6,10,20,.7)}
+  .flow .tag b{color:var(--teal);font-weight:600}
+  .flow.up .line::after{right:auto;left:-1px;border-left:none;border-right:6px solid var(--muted-2)}
+  .flow.up .tag b{color:var(--gold)}
+
+  /* ============ 底部约定 ============ */
+  .notes{margin-top:34px}
+  .notes h2{font-size:16px;margin:0 0 14px;color:var(--text);display:flex;align-items:center;gap:9px}
+  .notes h2::before{content:"";width:4px;height:16px;border-radius:2px;background:linear-gradient(var(--cyan),var(--violet))}
+  .ngrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:900px){.ngrid{grid-template-columns:1fr}}
+  .note{font-size:12.2px;color:var(--muted);padding:13px 15px;border-radius:13px;border:1px solid var(--line);background:var(--card)}
+  .note b{color:var(--text);display:block;margin-bottom:3px;font-size:12.8px}
+
+  footer{margin-top:40px;text-align:center;color:var(--muted-2);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker"><span class="dot"></span>XINGLAN ARCHITECTURE · v2</div>
+    <h1>栖光 · 系统架构图</h1>
+    <p class="sub">单进程 Express 同源托管前端构建产物；React 前端 ↔ SSE 流式对话 ↔ Agent 大脑（百炼 LLM + 13 工具）↔ SQLite 记忆库。含服务端→客户端动作回流与"确认 UI 单一入口"等关键约定。</p>
+    <div class="meta">
+      <span>server/index.ts · 装配入口</span><span>127.0.0.1:4000 同源</span><span>工具注册表唯一源 · registry.ts</span><span>due_ts 结构化判定</span>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span class="lg"><i class="sw" style="background:var(--cyan)"></i>客户端 · 系统语言</span>
+    <span class="lg"><i class="sw" style="background:var(--teal)"></i>流传输 SSE</span>
+    <span class="lg"><i class="sw" style="background:var(--azure)"></i>服务端 · 系统语言</span>
+    <span class="lg"><i class="sw" style="background:var(--violet)"></i>数据层</span>
+    <span class="lg"><i class="sw" style="background:var(--gold)"></i>暖金 = 仅「人的环 / 待确认」</span>
+  </div>
+
+  <!-- ========== 客户端 ========== -->
+  <section class="layer" style="--accent:var(--cyan)">
+    <div class="lhead">
+      <div class="lbadge">UI</div>
+      <div>
+        <div class="ltitle">浏览器 · React 前端</div>
+        <div class="lpath">src/App.tsx → pages/CustomerPage → components/* · hooks/* · utils/*</div>
+      </div>
+    </div>
+    <p class="ldesc">三层交互面：<b>Rail</b>（常驻导航）· <b>Stage</b>（一次只看一个视图）· <b>Overlay</b>（抽屉/面板/反馈栈）。所有"开口"统一走 <span class="code">XinglanShell.dispatch()</span>。</p>
+
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--cyan)">
+        <div class="bt">🎨 氛围层</div>
+        <div class="bd">Canvas 星空 + CSS 星云辉光；高分屏按 DPR 渲染，支持 lite 降载与 reduced-motion。</div>
+        <div class="chips"><span class="chip">StarField.tsx</span><span class="chip">xinglanMood.ts</span></div>
+      </div>
+      <div class="box" style="--tcol:var(--cyan)">
+        <div class="bt">💬 Stage 主视图</div>
+        <div class="bd">对话（只承载当前会话）· 我的仪表盘（记忆/目标/产物）· 治理 · 音乐。</div>
+        <div class="chips"><span class="chip">ConversationView</span><span class="chip">DashboardPanel</span><span class="chip">GoalsPane</span><span class="chip">MusicPlayer</span></div>
+      </div>
+      <div class="box human">
+        <div class="bt">🙋 Overlay · 人的环</div>
+        <div class="bd">待确认浮层是全系统<b>唯一</b>确认入口（暖金只归此处）；另有主动服务卡、命令面板 ⌘K。</div>
+        <div class="chips"><span class="chip">.nx-human-moment</span><span class="chip">proactive 卡</span><span class="chip">CommandPalette</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 传输 -->
+  <div class="flow"><div class="line"></div><span class="tag">下行流 <b>SSE</b> · text / tool_result / done / music</span><div class="line"></div></div>
+  <div class="flow up"><div class="line"></div><span class="tag">上行 <b>fetch</b> /api/* · 用户输入与卡片动作</span><div class="line"></div></div>
+  <div class="flow up"><div class="line"></div><span class="tag">动作桥 <b>CustomEvent</b> · xl-music / xl-music-control（服务端→客户端驱动播放）</span><div class="line"></div></div>
+
+  <!-- ========== 服务端 ========== -->
+  <section class="layer" style="--accent:var(--azure)">
+    <div class="lhead">
+      <div class="lbadge">⚙</div>
+      <div>
+        <div class="ltitle">服务端 · Express 单进程</div>
+        <div class="lpath">server/index.ts（只做装配）→ routes/* · agent 核心 · tools/* · scheduler · music</div>
+      </div>
+    </div>
+    <p class="ldesc">中间件 → 管理鉴权 → 启动数据/调度 → 按域挂载路由 → 同源静态托管 <span class="code">dist</span> + SPA 回退 → listen。多轮历史由 <span class="code">buildHistory()</span> 注入消息，保住上下文。</p>
+
+    <div class="grid g4">
+      <div class="box" style="--tcol:var(--azure)">
+        <div class="bt">🧠 Agent 大脑</div>
+        <div class="bd">系统提示词 + 百炼 LLM 流式查询；自由文本时间经 parseDue 归一为结构化字段。</div>
+        <div class="chips"><span class="chip">agent.ts</span><span class="chip">llm/bailian.ts</span><span class="chip">due.ts</span><span class="chip">nlu.ts</span></div>
+      </div>
+      <div class="box" style="--tcol:var(--azure)">
+        <div class="bt">🧰 工具注册表 · 唯一源</div>
+        <div class="bd">一处定义 <code>name/desc/schema/enabled</code>；下发 schema、执行、提示词能力清单三者同源派生。带超时+重试。</div>
+        <div class="chips"><span class="chip">recall/save_memory</span><span class="chip">set/check_reminder</span><span class="chip">checkin_mood</span><span class="chip">get_schedule</span><span class="chip">ask_user</span><span class="chip">web_lookup</span><span class="chip">open/create/update_artifact</span><span class="chip">play/control_music</span></div>
+      </div>
+      <div class="box" style="--tcol:var(--azure)">
+        <div class="bt">⏰ 调度器</div>
+        <div class="bd">每 60s 扫描：生成晨报 / 到期提醒 / 周复盘，写入主动卡；有内联动作（完成·推迟·追问）。</div>
+        <div class="chips"><span class="chip">scheduler.ts</span><span class="chip">recur.ts</span><span class="chip">proactive.ts</span></div>
+      </div>
+      <div class="box" style="--tcol:var(--azure)">
+        <div class="bt">🎵 音乐域</div>
+        <div class="bd">扫描本地曲库建索引；<span class="code">/api/music/stream/:id</span> 支持 Range 206；工具选曲后回流客户端播放。</div>
+        <div class="chips"><span class="chip">music.ts</span><span class="chip">routes/music.ts</span><span class="chip">setMusicAction</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="flow"><div class="line"></div><span class="tag"><b>SQL</b> · better-sqlite3 同步读写</span><div class="line"></div></div>
+
+  <!-- ========== 数据层 ========== -->
+  <section class="layer" style="--accent:var(--violet)">
+    <div class="lhead">
+      <div class="lbadge">🗄</div>
+      <div>
+        <div class="ltitle">数据层 · SQLite</div>
+        <div class="lpath">server/db.ts → db/{core,conversations,memories,reminders,moods,artifacts,proactive,music}.ts</div>
+      </div>
+    </div>
+    <p class="ldesc">对话与产出长期沉淀；<b>reminders.due_ts</b>（epoch）是到期/逾期/排序的<b>唯一</b>判定依据，<span class="code">due_at</span> 仅存原文供展示。</p>
+    <div class="grid g2">
+      <div class="box" style="--tcol:var(--violet)">
+        <div class="bt">💭 对话与产出</div>
+        <div class="chips"><span class="chip">sessions</span><span class="chip">messages</span><span class="chip">artifacts</span><span class="chip">artifact_versions</span><span class="chip">agent_runs</span></div>
+      </div>
+      <div class="box" style="--tcol:var(--violet)">
+        <div class="bt">🧠 记忆与节律</div>
+        <div class="chips"><span class="chip">memories</span><span class="chip">reminders(due_ts)</span><span class="chip">moods</span><span class="chip">pending_questions</span><span class="chip">proactive_cards</span><span class="chip">proactive_feedback</span><span class="chip">tracks</span><span class="chip">overrides</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 关键约定 ========== -->
+  <section class="notes">
+    <h2>贯穿全局的关键约定</h2>
+    <div class="ngrid">
+      <div class="note"><b>确认 UI 单一入口</b>待确认时只有「人的环」浮层；对话内联的确认卡仅在已决策后留记录，禁止两份同现。</div>
+      <div class="note"><b>暖金只属于人</b>暖金仅用于「人的环 / 待确认」；冰青代表系统语言，二者不可混用。</div>
+      <div class="note"><b>多轮上下文注入</b>每轮把会话历史（上限约 12 条）注入模型消息，避免"每轮失忆"导致的反问与机械回复。</div>
+      <div class="note"><b>工具单一数据源</b>提示词里的能力清单与实际下发的工具数组，同源于 tools/registry.ts，杜绝能力漂移。</div>
+      <div class="note"><b>结构化时间判定</b>模型自由文本时间一律归一为 due_ts；解析不出即为空，绝不猜测，避免误触发到期提醒。</div>
+      <div class="note"><b>引擎看门狗</b>前端 6s 无内容即中断流并回退本地兜底，防止上游配额耗尽时整会话静默卡死。</div>
+    </div>
+  </section>
+
+  <footer>栖光 · 星澜项目 · 架构图据当前代码结构绘制（server/routes · tools/registry · db/* · components/*）</footer>
+</div>
+</body>
+</html>

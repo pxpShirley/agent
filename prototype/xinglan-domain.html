@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>栖光 · 域 — 未来 AI Agent 交互原型（场域范式 · 全新重构）</title>
+<style>
+:root{
+  --bg0:#030510; --bg1:#0a1024;
+  --ink:#eaf3ff; --ink-dim:#9db4d6; --ink-faint:#55698a;
+  --brand:#5fe1ff; --brand-soft:rgba(95,225,255,.12); --brand-line:rgba(95,225,255,.25);
+  --user-ice:#dff3ff;
+  --gold:#ffd479; --gold-soft:rgba(255,212,121,.12); --gold-line:rgba(255,212,121,.4);
+  --ease:cubic-bezier(.22,.9,.28,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  background:radial-gradient(1400px 900px at 62% 30%, #0d1838 0%, var(--bg1) 45%, var(--bg0) 100%);
+  color:var(--ink);overflow:hidden;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:8px}
+
+/* ===== 场域基底 ===== */
+#sky,#fx{position:fixed;inset:0;width:100vw;height:100vh}
+#sky{z-index:0}
+#fx{z-index:1;pointer-events:none}
+.scene{position:fixed;inset:0;z-index:2;transition:transform .9s var(--ease), opacity .9s var(--ease)}
+body.depth .scene{transform:scale(.82) translateY(4vh);opacity:.5;pointer-events:none}
+
+/* ===== 栖光（自由漂浮的在场者） ===== */
+#beingWrap{position:absolute;left:0;top:0;width:150px;height:170px;z-index:5;will-change:transform}
+#aura{
+  position:absolute;left:50%;top:44%;width:230px;height:230px;transform:translate(-50%,-50%);
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle, rgba(95,225,255,.16) 0%, rgba(95,225,255,.05) 44%, transparent 70%);
+  animation:breathA 7s ease-in-out infinite;transition:background 1.2s var(--ease);
+}
+@keyframes breathA{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.8}50%{transform:translate(-50%,-50%) scale(1.08);opacity:1}}
+#beingSvg{position:absolute;left:0;top:0;width:150px;height:150px}
+#beingSvg .b{animation:breathB 4.6s ease-in-out infinite;transform-origin:75px 78px}
+@keyframes breathB{0%,100%{transform:scale(1)}50%{transform:scale(1.03,1.05)}}
+#gem{cursor:pointer;transition:filter .3s}
+#gem:hover{filter:drop-shadow(0 0 8px var(--brand))}
+#cap{
+  position:absolute;left:50%;top:158px;transform:translateX(-50%);white-space:nowrap;
+  font-size:12px;letter-spacing:.14em;color:var(--ink-faint);transition:color .6s;
+}
+#cap.brand{color:var(--brand)}
+#cap.gold{color:var(--gold)}
+
+/* ===== 光语丝带（对话不再是面板） ===== */
+#ribbon{position:absolute;left:0;top:0;z-index:6;width:min(340px,42vw);display:flex;flex-direction:column-reverse;gap:10px;pointer-events:none;will-change:transform}
+.say{
+  pointer-events:auto;max-width:100%;padding:11px 16px;border-radius:15px;
+  font-size:14px;line-height:1.75;backdrop-filter:blur(8px);
+  animation:sayIn .55s var(--ease);
+}
+@keyframes sayIn{from{opacity:0;transform:translateY(14px) scale(.96);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+.say.agent{align-self:flex-start;background:rgba(14,24,50,.62);border:1px solid var(--brand-line);border-left:2px solid var(--brand);box-shadow:0 0 24px rgba(95,225,255,.08)}
+.say.user{align-self:flex-end;background:rgba(220,240,255,.08);border:1px solid rgba(220,240,255,.2);color:var(--user-ice)}
+.say.note{align-self:center;background:none;border:none;box-shadow:none;color:var(--ink-faint);font-size:11.5px;letter-spacing:.12em;padding:2px}
+.say.whisper{align-self:flex-start;background:var(--brand-soft);border:1px dashed var(--brand-line);color:var(--ink-dim);font-size:13px}
+.say.age1{opacity:.62}
+.say.age2{opacity:.34}
+.say.age3{opacity:.16;filter:blur(.4px)}
+
+/* ===== 感知涟漪 ===== */
+.ripple{
+  position:absolute;left:50%;top:44%;width:20px;height:20px;border-radius:50%;
+  border:1.5px solid var(--brand);transform:translate(-50%,-50%);pointer-events:none;
+  animation:rip 2.6s ease-out forwards;
+}
+@keyframes rip{from{opacity:.9;transform:translate(-50%,-50%) scale(1)}to{opacity:0;transform:translate(-50%,-50%) scale(16)}}
+
+/* ===== 记忆星点（环绕轨道） ===== */
+#motes{position:fixed;inset:0;z-index:4;pointer-events:none}
+.mote{
+  position:absolute;left:0;top:0;width:9px;height:9px;border-radius:50%;pointer-events:auto;
+  background:radial-gradient(circle,#d8f4ff 0%, var(--brand) 55%, transparent 100%);
+  box-shadow:0 0 10px rgba(95,225,255,.7);cursor:pointer;transition:box-shadow .3s;
+}
+.mote:hover{box-shadow:0 0 18px rgba(95,225,255,1)}
+.mote .ml{
+  position:absolute;left:14px;top:-4px;width:190px;padding:8px 12px;border-radius:10px;
+  background:rgba(10,18,40,.92);border:1px solid var(--brand-line);
+  font-size:12px;line-height:1.6;color:var(--ink-dim);
+  opacity:0;pointer-events:none;transition:opacity .3s, transform .3s;transform:translateY(4px);
+}
+.mote:hover .ml{opacity:1;transform:none}
+.mote .ml b{display:block;color:var(--brand);font-weight:600;font-size:11.5px;letter-spacing:.08em;margin-bottom:2px}
+
+/* ===== 地平线灯塔（目标） ===== */
+#horizon{position:fixed;left:0;right:0;bottom:0;height:120px;z-index:3;display:flex;justify-content:center;gap:12vw;align-items:flex-end;pointer-events:none}
+.beacon{pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+.beacon .beam{
+  width:8px;border-radius:6px 6px 0 0;
+  background:linear-gradient(to top, rgba(255,212,121,.75), rgba(255,212,121,.06));
+  box-shadow:0 0 22px rgba(255,212,121,.35);transition:height 1s var(--ease);
+}
+.beacon .bl{font-size:11px;letter-spacing:.1em;color:var(--ink-faint);transition:color .3s}
+.beacon:hover .bl{color:var(--gold)}
+
+/* ===== 显形物码头（产物） ===== */
+#dock{position:fixed;right:22px;bottom:22px;z-index:7;display:flex;flex-direction:column;gap:9px;align-items:flex-end}
+.art{
+  width:190px;padding:12px 15px;border-radius:13px;
+  background:rgba(12,20,44,.88);border:1px solid var(--brand-line);
+  font-size:12.5px;line-height:1.6;color:var(--ink-dim);backdrop-filter:blur(8px);
+  box-shadow:0 6px 24px rgba(2,6,18,.5);
+}
+.art b{display:block;color:var(--ink);font-weight:500;font-size:13px}
+.art .as{color:var(--ink-faint);font-size:11px;margin-top:3px}
+.art-fly{position:fixed;z-index:40;transition:transform 1.1s var(--ease), opacity 1.1s var(--ease);pointer-events:none}
+
+/* ===== 时光纵深（历史） ===== */
+#depthLayer{position:fixed;inset:0;z-index:8;display:flex;flex-direction:column;justify-content:center;gap:26px;align-items:center;opacity:0;pointer-events:none;transition:opacity .8s var(--ease)}
+body.depth #depthLayer{opacity:1;pointer-events:auto}
+.ghost{
+  width:min(480px,80vw);padding:16px 24px;border-radius:16px;text-align:left;
+  background:rgba(10,16,36,.5);border:1px solid var(--line, rgba(148,180,255,.14));
+  color:var(--ink-faint);transition:all .4s var(--ease);backdrop-filter:blur(4px);
+}
+.ghost:hover{border-color:var(--brand-line);color:var(--ink-dim);transform:scale(1.02)}
+.ghost b{display:block;color:inherit;font-weight:500;font-size:14.5px}
+.ghost span{font-size:12px}
+.ghost .gt{font-size:10.5px;letter-spacing:.18em;color:var(--brand);opacity:.7;display:block;margin-bottom:5px}
+
+/* ===== 透明内核（治理） ===== */
+#corePanel{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.92);z-index:50;
+  width:min(520px,92vw);max-height:72vh;overflow-y:auto;padding:26px 28px;border-radius:20px;
+  background:rgba(8,14,32,.94);border:1px solid var(--brand-line);backdrop-filter:blur(14px);
+  box-shadow:0 0 60px rgba(95,225,255,.12), 0 20px 60px rgba(2,6,18,.6);
+  opacity:0;pointer-events:none;transition:opacity .45s var(--ease), transform .45s var(--ease);
+}
+#corePanel.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+#corePanel h3{font-size:12.5px;letter-spacing:.18em;color:var(--brand);margin:18px 0 10px;font-weight:600}
+#corePanel h3:first-child{margin-top:0}
+.crow{display:flex;gap:12px;align-items:center;padding:10px 13px;border-radius:11px;background:rgba(95,225,255,.05);border:1px solid rgba(95,225,255,.1);margin-bottom:8px;font-size:12.5px;color:var(--ink-dim);line-height:1.6}
+.crow b{color:var(--ink);font-weight:500}
+.crow .ct{margin-left:auto;flex:none;font-size:10.5px;padding:2px 9px;border-radius:99px;border:1px solid var(--brand-line);color:var(--brand)}
+.crow .ct.gold{border-color:var(--gold-line);color:var(--gold)}
+#coreX{position:absolute;right:16px;top:14px;width:30px;height:30px;border-radius:9px;color:var(--ink-faint);border:1px solid rgba(148,180,255,.15)}
+#coreX:hover{color:var(--brand);border-color:var(--brand-line)}
+.cempty{color:var(--ink-faint);font-size:12.5px;padding:14px;text-align:center;border:1px dashed rgba(148,180,255,.15);border-radius:11px}
+
+/* ===== 人的时刻（暖金灯盏 + 全场调暗） ===== */
+#dim{position:fixed;inset:0;z-index:60;background:rgba(2,4,12,.55);opacity:0;pointer-events:none;transition:opacity .6s var(--ease)}
+#dim.show{opacity:1;pointer-events:auto}
+#lantern{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-46%) scale(.94);z-index:61;
+  width:min(360px,90vw);padding:24px 24px 20px;border-radius:20px;text-align:center;
+  background:linear-gradient(180deg, rgba(40,30,10,.95), rgba(22,16,5,.97));
+  border:1px solid var(--gold-line);
+  box-shadow:0 0 30px rgba(255,212,121,.25), 0 0 90px rgba(255,212,121,.1);
+  opacity:0;pointer-events:none;transition:opacity .5s var(--ease), transform .5s var(--ease);
+}
+#lantern.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+#lantern h4{font-size:12px;letter-spacing:.2em;color:var(--gold);font-weight:600;margin-bottom:12px}
+#lantern p{font-size:15px;line-height:1.8}
+.lbtns{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+.lbtn{padding:11px 8px;border-radius:12px;font-size:13px;background:rgba(255,212,121,.07);border:1px solid rgba(255,212,121,.22);color:var(--ink-dim);transition:all .25s var(--ease)}
+.lbtn:hover{background:rgba(255,212,121,.15);color:var(--ink)}
+.lbtn.primary{background:rgba(255,212,121,.17);border-color:var(--gold-line);color:var(--gold)}
+.lbtn:active{transform:scale(.96)}
+
+/* ===== 执行链微标（星河步骤） ===== */
+#stepbar{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:9;display:flex;gap:7px}
+.step{
+  display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
+  font-size:11.5px;letter-spacing:.06em;color:var(--ink-faint);
+  border:1px solid rgba(148,180,255,.12);background:rgba(8,14,32,.6);backdrop-filter:blur(6px);
+  transition:all .4s var(--ease);
+}
+.step i{width:5px;height:5px;border-radius:50%;background:var(--ink-faint);opacity:.5}
+.step.active{color:var(--brand);border-color:var(--brand-line)}
+.step.active i{background:var(--brand);opacity:1;box-shadow:0 0 8px var(--brand);animation:pp 1.6s ease-in-out infinite}
+.step.done{color:var(--ink-dim);border-color:rgba(95,225,255,.15)}
+.step.done i{background:var(--brand);opacity:.65}
+.step.waiting{color:var(--gold);border-color:var(--gold-line)}
+.step.waiting i{background:var(--gold);opacity:1;box-shadow:0 0 8px var(--gold)}
+@keyframes pp{0%,100%{transform:scale(1)}50%{transform:scale(1.6)}}
+
+/* ===== ⌘K ===== */
+#cmdkO{position:fixed;inset:0;z-index:80;background:rgba(2,5,14,.55);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;padding-top:15vh}
+#cmdkO.open{display:flex}
+.cmdk{width:min(540px,90vw);border-radius:18px;overflow:hidden;background:rgba(9,15,34,.98);border:1px solid var(--brand-line);box-shadow:0 0 50px rgba(95,225,255,.12)}
+.cmdk input{width:100%;padding:16px 22px;font-size:15px;font-family:inherit;color:var(--ink);background:none;border:none;outline:none;border-bottom:1px solid rgba(148,180,255,.12)}
+.cmdk input::placeholder{color:var(--ink-faint)}
+#cmdkL{max-height:300px;overflow-y:auto;padding:8px}
+.ckg{font-size:10.5px;color:var(--ink-faint);letter-spacing:.18em;padding:9px 14px 4px}
+.cki{display:flex;gap:11px;align-items:center;width:100%;padding:10px 14px;border-radius:11px;font-size:13.5px;color:var(--ink-dim);text-align:left}
+.cki.sel{background:var(--brand-soft);color:var(--ink)}
+
+/* ===== 演示条 ===== */
+#demobar{
+  position:fixed;left:22px;bottom:22px;z-index:70;display:flex;flex-direction:column;gap:8px;align-items:flex-start;
+}
+#demobar button{
+  padding:8px 16px;border-radius:999px;font-size:12px;letter-spacing:.06em;
+  color:var(--ink-dim);border:1px solid rgba(148,180,255,.14);background:rgba(8,14,32,.75);backdrop-filter:blur(8px);
+  transition:all .25s var(--ease);
+}
+#demobar button:hover{color:var(--brand);border-color:var(--brand-line)}
+#demobar button.primary{color:var(--brand);border-color:var(--brand-line)}
+#demobar button:active{transform:scale(.95)}
+
+/* ===== 输入（直接对栖光开口） ===== */
+#composer{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:10;
+  display:flex;gap:10px;width:min(480px,86vw);
+}
+#composer input{
+  flex:1;padding:13px 20px;border-radius:999px;font-size:14px;font-family:inherit;
+  background:rgba(9,15,34,.8);border:1px solid rgba(148,180,255,.16);color:var(--ink);outline:none;
+  backdrop-filter:blur(10px);transition:border-color .3s, box-shadow .3s;
+}
+#composer input:focus{border-color:var(--brand-line);box-shadow:0 0 0 4px rgba(95,225,255,.07)}
+#composer input::placeholder{color:var(--ink-faint)}
+#sendBtn{
+  width:46px;height:46px;border-radius:50%;font-size:15px;color:#04101e;flex:none;
+  background:linear-gradient(135deg,#8beaff,var(--brand));box-shadow:0 0 18px rgba(95,225,255,.4);
+  transition:transform .2s var(--ease);
+}
+#sendBtn:active{transform:scale(.9)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<canvas id="fx"></canvas>
+
+<div class="scene">
+  <div id="motes"></div>
+
+  <div id="beingWrap">
+    <div id="aura"></div>
+    <svg id="beingSvg" viewBox="0 0 120 120" aria-label="栖光">
+      <defs>
+        <radialGradient id="bg1" cx="42%" cy="36%" r="72%">
+          <stop offset="0%" stop-color="#c8f2ff"/>
+          <stop offset="45%" stop-color="#6fd6ff"/>
+          <stop offset="100%" stop-color="#1d5f8f"/>
+        </radialGradient>
+      </defs>
+      <g class="b">
+        <ellipse cx="60" cy="66" rx="34" ry="33" fill="url(#bg1)" opacity=".95"/>
+        <path d="M56 33 Q60 22 65 33 Q62 27 56 33 Z" fill="#6fd6ff" opacity=".85"/>
+        <ellipse cx="47" cy="62" rx="6.4" ry="7.6" fill="#0b1a2e"/>
+        <ellipse cx="73" cy="62" rx="6.4" ry="7.6" fill="#0b1a2e"/>
+        <circle id="pupL" cx="47" cy="62" r="2.6" fill="#eaffff"/>
+        <circle id="pupR" cx="73" cy="62" r="2.6" fill="#eaffff"/>
+        <path id="mouth" d="M53 78 Q60 84 67 78" stroke="#0b1a2e" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        <polygon id="gem" points="60,90 63.5,94 60,98 56.5,94" fill="#8beaff" opacity=".9"/>
+      </g>
+    </svg>
+    <div id="cap">我在域中</div>
+  </div>
+
+  <div id="ribbon"></div>
+
+  <div id="horizon"></div>
+  <div id="dock"></div>
+</div>
+
+<div id="depthLayer"></div>
+
+<div id="stepbar"></div>
+
+<div id="dim"></div>
+<div id="lantern" role="dialog" aria-label="需要你的决策">
+  <h4>✦ 这个决定留给你</h4>
+  <p id="lq"></p>
+  <div class="lbtns">
+    <button class="lbtn primary" data-d="confirm">就按这个来 ✓</button>
+    <button class="lbtn" data-d="escalate">想调整细节</button>
+    <button class="lbtn" data-d="defer">晚点再定</button>
+    <button class="lbtn" data-d="cancel">先不安排</button>
+  </div>
+</div>
+
+<div id="corePanel" role="dialog" aria-label="栖光的透明内核">
+  <button id="coreX" aria-label="关闭">✕</button>
+  <h3>栖光知道什么 · 记忆</h3>
+  <div id="coreMem"></div>
+  <h3>交还给人的时刻 · 决策日志</h3>
+  <div id="coreLog"><div class="cempty">尚无决策记录。</div></div>
+</div>
+
+<div id="cmdkO">
+  <div class="cmdk" role="dialog" aria-label="命令面板">
+    <input id="cmdkI" placeholder="唤起能力、记忆、历史…" aria-label="搜索">
+    <div id="cmdkL"></div>
+  </div>
+</div>
+
+<div id="composer">
+  <input id="inp" placeholder="对栖光开口…" aria-label="输入">
+  <button id="sendBtn" aria-label="发送">➤</button>
+</div>
+
+<div id="demobar">
+  <button id="runB" class="primary">▶ 协作任务</button>
+  <button id="senseB">主动感知</button>
+  <button id="loopB">情感闭环</button>
+  <button id="depthB">时光纵深</button>
+  <button id="cmdkB2">⌘K 唤起</button>
+  <button id="resetB">重置</button>
+</div>
+
+<script>
+'use strict';
+function $(id){return document.getElementById(id);}
+var timers=[];
+function later(ms,fn){var t=setTimeout(fn,ms);timers.push(t);return t;}
+function clearTimers(){timers.forEach(function(t){clearTimeout(t);});timers=[];}
+var RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ===== 执行链 ===== */
+var STEPS=[
+  {id:'understand',label:'理解',t:.06,note:'解析意图：减压型周末行程'},
+  {id:'recall',label:'召回',t:.20,note:'召回 3 条记忆：温泉 / 怕吵 / 连加 4 天班'},
+  {id:'weigh',label:'评估',t:.34,note:'三案对比：安静 > 省力 > 新鲜感'},
+  {id:'draft',label:'起草',t:.48,note:'生成两日行程草案'},
+  {id:'review',label:'复核',t:.62,note:'预算 / 车程 / 午休自检'},
+  {id:'handover',label:'交还',t:.78,note:'涉及你的时间与花费——交还'},
+  {id:'settle',label:'安住',t:.94,note:'写入日历与目标，回到陪伴态'}
+];
+var status={};
+STEPS.forEach(function(s){status[s.id]='pending';});
+
+/* ===== 情绪状态机 ===== */
+var MOODS={
+  neutral:{aura:'radial-gradient(circle, rgba(95,225,255,.16) 0%, rgba(95,225,255,.05) 44%, transparent 70%)',cap:'我在域中',cls:'brand'},
+  thinking:{aura:'radial-gradient(circle, rgba(95,225,255,.3) 0%, rgba(95,225,255,.1) 46%, transparent 72%)',cap:'我在想…',cls:'brand'},
+  speaking:{aura:'radial-gradient(circle, rgba(95,225,255,.24) 0%, rgba(95,225,255,.08) 44%, transparent 70%)',cap:'听我说',cls:'brand'},
+  waiting:{aura:'radial-gradient(circle, rgba(255,212,121,.24) 0%, rgba(255,212,121,.07) 44%, transparent 70%)',cap:'等你决定',cls:'gold'},
+  happy:{aura:'radial-gradient(circle, rgba(150,242,205,.24) 0%, rgba(95,225,255,.08) 46%, transparent 72%)',cap:'成了',cls:'brand'},
+  concerned:{aura:'radial-gradient(circle, rgba(120,200,255,.2) 0%, rgba(95,225,255,.07) 44%, transparent 70%)',cap:'我有点在意',cls:'brand'},
+  rest:{aura:'radial-gradient(circle, rgba(95,225,255,.09) 0%, rgba(95,225,255,.03) 40%, transparent 66%)',cap:'我在这里陪你',cls:'brand'}
+};
+function setMood(m){
+  var d=MOODS[m]||MOODS.neutral;
+  $('aura').style.background=d.aura;
+  var c=$('cap');c.textContent=d.cap;c.className=d.cls;
+  var mo=$('mouth');
+  if(m==='happy'){mo.setAttribute('d','M52 77 Q60 86 68 77');}
+  else if(m==='concerned'){mo.setAttribute('d','M53 80 Q60 76 67 80');}
+  else if(m==='rest'){mo.setAttribute('d','M54 79 Q60 82 66 79');}
+  else{mo.setAttribute('d','M53 78 Q60 84 67 78');}
+}
+
+/* ===== 栖光漂浮 ===== */
+var BX=0,BY=0;
+function wander(t){
+  var W=window.innerWidth,H=window.innerHeight;
+  BX=W*.3 + Math.sin(t*.00013)*40 + Math.sin(t*.000031)*22;
+  BY=H*.5 + Math.cos(t*.00017)*28;
+  if(RM){BX=W*.3;BY=H*.5;}
+  $('beingWrap').style.transform='translate('+(BX-75)+'px,'+(BY-75)+'px)';
+  $('ribbon').style.transform='translate('+(BX+96)+'px,'+(BY-210)+'px)';
+}
+wander(0);
+if(!RM){(function wl(t){wander(t||0);requestAnimationFrame(wl);})();}
+
+/* ===== 眼睛随标 ===== */
+window.addEventListener('mousemove',function(e){
+  var dx=(e.clientX-BX)/220,dy=(e.clientY-BY)/220;
+  var mx=Math.max(-1.8,Math.min(1.8,dx*5)),my=Math.max(-1.4,Math.min(1.4,dy*5));
+  $('pupL').setAttribute('cx',47+mx);$('pupL').setAttribute('cy',62+my);
+  $('pupR').setAttribute('cx',73+mx);$('pupR').setAttribute('cy',62+my);
+});
+
+/* ===== 星空 + 微尘 ===== */
+(function(){
+  var c=$('sky'),x=c.getContext('2d'),stars=[],dust=[];
+  function rs(){
+    c.width=window.innerWidth;c.height=window.innerHeight;
+    stars=[];var n=Math.floor(c.width*c.height/5200);
+    for(var i=0;i<n;i++){stars.push({x:Math.random()*c.width,y:Math.random()*c.height,r:.3+Math.random()*1.3,a:.12+Math.random()*.45,s:.003+Math.random()*.015,p:Math.random()*6.28});}
+    dust=[];
+    for(var j=0;j<7;j++){dust.push({x:Math.random()*c.width,y:Math.random()*c.height,r:120+Math.random()*200,vx:(Math.random()-.5)*.06,vy:(Math.random()-.5)*.04});}
+  }
+  function draw(t){
+    x.clearRect(0,0,c.width,c.height);
+    for(var j=0;j<dust.length;j++){
+      var d=dust[j];
+      d.x+=d.vx;d.y+=d.vy;
+      if(d.x<-d.r)d.x=c.width+d.r;if(d.x>c.width+d.r)d.x=-d.r;
+      if(d.y<-d.r)d.y=c.height+d.r;if(d.y>c.height+d.r)d.y=-d.r;
+      var g=x.createRadialGradient(d.x,d.y,0,d.x,d.y,d.r);
+      g.addColorStop(0,'rgba(60,110,200,.05)');
+      g.addColorStop(1,'rgba(60,110,200,0)');
+      x.fillStyle=g;x.beginPath();x.arc(d.x,d.y,d.r,0,6.283);x.fill();
+    }
+    for(var i=0;i<stars.length;i++){
+      var st=stars[i];
+      var a=st.a+(RM?0:Math.sin(t*.001*st.s*60+st.p)*.18);
+      if(a<0)a=0;
+      x.globalAlpha=Math.min(a,.8);
+      x.fillStyle='#cfeaff';
+      x.beginPath();x.arc(st.x,st.y,st.r,0,6.283);x.fill();
+    }
+    x.globalAlpha=1;
+  }
+  function loop(t){draw(t);if(!RM)requestAnimationFrame(loop);}
+  window.addEventListener('resize',rs);
+  rs();draw(0);if(!RM)requestAnimationFrame(loop);
+})();
+
+/* ===== 星河执行链（从栖光自身流出） ===== */
+var RIVER=(function(){
+  var c=$('fx'),x=c.getContext('2d'),parts=[],comets=[],knots={};
+  function rs(){c.width=window.innerWidth;c.height=window.innerHeight;
+    parts=[];
+    for(var i=0;i<110;i++){parts.push({t:Math.random(),spd:.0012+Math.random()*.0024,off:(Math.random()-.5)*22,r:.6+Math.random()*1.5,a:.2+Math.random()*.45,p:Math.random()*6.28});}
+    STEPS.forEach(function(s){knots[s.id]={ap:0};});
+  }
+  function ctrl(){
+    return [[BX,BY],[BX+90,BY-150],[BX+260,BY-70],[BX+430,BY-190],[BX+560,BY-30],[BX+620,BY-140]];
+  }
+  function catmull(P,t){
+    var n=P.length-1,f=t*n,i=Math.floor(f);
+    if(i>=n)i=n-1;var u=f-i;
+    var p0=P[Math.max(i-1,0)],p1=P[i],p2=P[Math.min(i+1,n)],p3=P[Math.min(i+2,n)];
+    function cr(a,b,cc,d,uu){var v=uu*uu,vv=uu*uu*uu;return .5*((2*b)+(-a+cc)*uu+(2*a-5*b+4*cc-d)*v+(-a+3*b-3*cc+d)*vv);}
+    return [cr(p0[0],p1[0],p2[0],p3[0],u),cr(p0[1],p1[1],p2[1],p3[1],u)];
+  }
+  function sampleAt(t){return catmull(ctrl(),Math.min(Math.max(t,0),1));}
+  function spawnComet(fromT,toT,sid){comets.push({t0:fromT,t1:toT,p:0,sp:.02+Math.random()*.012,sid:sid});}
+  function draw(t){
+    x.clearRect(0,0,c.width,c.height);
+    x.globalCompositeOperation='lighter';
+    var P=ctrl();
+    function smp(tt){return catmull(P,Math.min(Math.max(tt,0),1));}
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      if(!RM){p.t+=p.spd;if(p.t>1)p.t-=1;}
+      var pos=smp(p.t);
+      var tw=p.a+(RM?0:Math.sin(t*.0015+p.p)*.16);
+      if(tw<.04)tw=.04;
+      var boost=1,gc='160,232,255';
+      for(var j=0;j<STEPS.length;j++){
+        var st=STEPS[j];
+        if(status[st.id]==='pending')continue;
+        if(Math.abs(p.t-st.t)<.05){boost=1.8;if(status[st.id]==='waiting')gc='255,224,150';}
+      }
+      x.fillStyle='rgba('+gc+','+Math.min(tw*boost,.9)+')';
+      x.beginPath();x.arc(pos[0],pos[1]+p.off*.5,p.r*boost,0,6.283);x.fill();
+    }
+    for(var ci=comets.length-1;ci>=0;ci--){
+      var cm=comets[ci];
+      cm.p+=cm.sp;
+      if(cm.p>=1){if(knots[cm.sid])knots[cm.sid].ap=1;comets.splice(ci,1);continue;}
+      var tt=cm.t0+(cm.t1-cm.t0)*cm.p;
+      var hp=smp(tt);
+      var g2=x.createRadialGradient(hp[0],hp[1],0,hp[0],hp[1],15);
+      g2.addColorStop(0,'rgba(205,246,255,.9)');
+      g2.addColorStop(.5,'rgba(95,225,255,.35)');
+      g2.addColorStop(1,'rgba(95,225,255,0)');
+      x.fillStyle=g2;
+      x.beginPath();x.arc(hp[0],hp[1],15,0,6.283);x.fill();
+      for(var w=1;w<=5;w++){
+        var tb=tt-w*.012;
+        if(tb<cm.t0)break;
+        var tp=smp(tb);
+        x.fillStyle='rgba(95,225,255,'+(.26-w*.045)+')';
+        x.beginPath();x.arc(tp[0],tp[1],3.2-w*.45,0,6.283);x.fill();
+      }
+    }
+    STEPS.forEach(function(s){
+      var k=knots[s.id];
+      if(!k||k.ap<=.02)return;
+      var pos=smp(s.t);
+      var isW=status[s.id]==='waiting';
+      var isA=status[s.id]==='active';
+      var col=isW?'255,212,121':'95,225,255';
+      var pulse=isA?(1+Math.sin(t*.004)*.18):1;
+      var R1=12*k.ap*pulse;
+      var g=x.createRadialGradient(pos[0],pos[1],0,pos[0],pos[1],R1);
+      g.addColorStop(0,'rgba('+col+','+(.7*k.ap)+')');
+      g.addColorStop(.4,'rgba('+col+','+(.26*k.ap)+')');
+      g.addColorStop(1,'rgba('+col+',0)');
+      x.fillStyle=g;
+      x.beginPath();x.arc(pos[0],pos[1],R1,0,6.283);x.fill();
+    });
+    x.globalCompositeOperation='source-over';
+  }
+  function loop(t){draw(t);if(!RM)requestAnimationFrame(loop);}
+  window.addEventListener('resize',rs);
+  rs();draw(0);if(!RM)requestAnimationFrame(loop);
+  return {
+    light:function(sid){
+      var idx=-1;
+      for(var i=0;i<STEPS.length;i++){if(STEPS[i].id===sid)idx=i;}
+      if(idx<0)return;
+      spawnComet(idx===0?0:STEPS[idx-1].t,STEPS[idx].t,sid);
+      if(RM){if(knots[sid])knots[sid].ap=1;}
+    },
+    settleAll:function(){STEPS.forEach(function(s){if(knots[s.id]&&status[s.id]!=='pending')knots[s.id].ap=1;});},
+    reset:function(){comets.length=0;STEPS.forEach(function(s){knots[s.id]={ap:0};});}
+  };
+})();
+
+/* ===== 步骤微标 ===== */
+function buildSteps(){
+  var el=$('stepbar');el.innerHTML='';
+  STEPS.forEach(function(s){
+    var b=document.createElement('button');
+    b.className='step';b.id='st-'+s.id;
+    b.innerHTML='<i></i>'+s.label;
+    b.onclick=function(){say('note','「'+s.label+'」'+s.note+' · 状态：'+status[s.id]);};
+    el.appendChild(b);
+  });
+  renderSteps();
+}
+function renderSteps(){
+  STEPS.forEach(function(s){
+    var b=$('st-'+s.id);if(!b)return;
+    b.className='step '+(status[s.id]==='pending'?'':status[s.id]);
+  });
+}
+function activate(sid){status[sid]='active';renderSteps();RIVER.light(sid);}
+function setStatus(sid,st){status[sid]=st;renderSteps();}
+
+/* ===== 光语丝带 ===== */
+function ageSays(){
+  var says=document.querySelectorAll('#ribbon .say');
+  var n=says.length;
+  says.forEach(function(el,i){
+    var age=n-1-i;
+    el.classList.remove('age1','age2','age3');
+    if(age>=3)el.classList.add('age3');
+    else if(age===2)el.classList.add('age2');
+    else if(age===1)el.classList.add('age1');
+  });
+}
+function say(role,text){
+  var el=document.createElement('div');
+  el.className='say '+role;el.textContent=text;
+  $('ribbon').appendChild(el);
+  ageSays();
+}
+function rippleFx(){
+  var r=document.createElement('div');r.className='ripple';
+  $('beingWrap').appendChild(r);
+  later(2700,function(){if(r.parentNode)r.parentNode.removeChild(r);});
+}
+
+/* ===== 人的时刻 ===== */
+var lCb=null;
+function showLantern(q,cb){
+  $('lq').textContent=q;
+  $('dim').classList.add('show');
+  $('lantern').classList.add('show');
+  setMood('waiting');lCb=cb||null;
+}
+function hideLantern(){
+  $('dim').classList.remove('show');
+  $('lantern').classList.remove('show');
+}
+var DT={confirm:'同意 · 按此执行',escalate:'调整 · 再看细节',defer:'稍后 · 晚点再定',cancel:'取消 · 先不安排'};
+Array.prototype.forEach.call(document.querySelectorAll('.lbtn'),function(b){
+  b.onclick=function(){
+    var d=b.getAttribute('data-d');
+    logDecision($('lq').textContent,DT[d]||d);
+    hideLantern();
+    if(lCb){var cb=lCb;lCb=null;cb(d);}
+  };
+});
+function logDecision(q,d){
+  var box=$('coreLog');
+  var emp=box.querySelector('.cempty');if(emp)emp.remove();
+  var row=document.createElement('div');row.className='crow';
+  var ts=new Date().toTimeString().slice(0,5);
+  row.innerHTML='<span><b>'+q.slice(0,24)+(q.length>24?'…':'')+'</b><br>'+ts+'</span><span class="ct gold">'+d+'</span>';
+  box.insertBefore(row,box.firstChild);
+}
+
+/* ===== 数据 ===== */
+var MEMS=[
+  {k:'休息偏好',v:'喜欢安静人少的地方，对噪音敏感'},
+  {k:'旅行偏好',v:'温泉与山野，车程 2 小时内'},
+  {k:'工作节奏',v:'本周连加 4 天班，疲劳累积'},
+  {k:'睡眠目标',v:'23:00 前入睡（进行中）'},
+  {k:'饮食',v:'清淡为主，少辣'}
+];
+var GOALS=[
+  {n:'周末彻底放松一次',p:60},
+  {n:'23:00 前入睡（本周）',p:45},
+  {n:'读完《置身事内》第 4 章',p:30}
+];
+var GHOSTS=[
+  {t:'周中减压计划',m:'昨天 · 12 次对话'},
+  {t:'睡眠习惯调整',m:'3 天前 · 8 次对话'},
+  {t:'旅行偏好整理',m:'2 周前 · 15 次对话'}
+];
+function buildMotes(){
+  var box=$('motes');box.innerHTML='';
+  MEMS.forEach(function(m,i){
+    var el=document.createElement('div');el.className='mote';
+    el.innerHTML='<div class="ml"><b>'+m.k+'</b>'+m.v+'</div>';
+    el.setAttribute('data-i',i);
+    box.appendChild(el);
+  });
+}
+function orbitMotes(t){
+  var motes=document.querySelectorAll('.mote');
+  motes.forEach(function(el,i){
+    var a=t*.00016+i*(6.283/motes.length);
+    var r=168+i*16;
+    var px=BX+Math.cos(a)*r;
+    var py=BY+Math.sin(a)*r*.62;
+    el.style.transform='translate('+px+'px,'+py+'px)';
+    el.style.opacity=.55+Math.sin(t*.0009+i)*.3;
+  });
+}
+if(!RM){(function ol(t){orbitMotes(t||0);requestAnimationFrame(ol);})();}
+else{later(50,function(){orbitMotes(1200);});}
+function buildHorizon(){
+  var h=$('horizon');h.innerHTML='';
+  GOALS.forEach(function(g){
+    var el=document.createElement('button');el.className='beacon';
+    el.innerHTML='<div class="beam" style="height:'+(24+g.p)+'px"></div><div class="bl">'+g.n+' · '+g.p+'%</div>';
+    el.onclick=function(){say('note','目标「'+g.n+'」推进至 '+g.p+'%');};
+    h.appendChild(el);
+  });
+}
+function buildGhosts(){
+  var d=$('depthLayer');d.innerHTML='';
+  GHOSTS.forEach(function(g,i){
+    var el=document.createElement('button');el.className='ghost';
+    el.style.opacity=.3+i*.22;
+    el.innerHTML='<span class="gt">过去的回声 · '+(i+1)+' 层</span><b>'+g.t+'</b><span>'+g.m+'</span>';
+    el.onclick=function(){
+      document.body.classList.remove('depth');
+      say('note','从时光纵深回到现在 · 带回「'+g.t+'」的上下文');
+    };
+    d.appendChild(el);
+  });
+}
+
+/* ===== 显形物 ===== */
+function materialize(title,sub){
+  var fly=document.createElement('div');
+  fly.className='art art-fly';
+  fly.innerHTML='<b>'+title+'</b><div class="as">'+sub+'</div>';
+  fly.style.left='0px';fly.style.top='0px';
+  fly.style.transform='translate('+BX+'px,'+BY+'px) scale(.6)';
+  fly.style.opacity='0';
+  document.body.appendChild(fly);
+  var dr=$('dock').getBoundingClientRect();
+  var tx=dr.left+10,ty=dr.top-10;
+  later(40,function(){
+    fly.style.opacity='1';
+    fly.style.transform='translate('+tx+'px,'+ty+'px) scale(.94)';
+  });
+  later(1250,function(){
+    if(fly.parentNode)fly.parentNode.removeChild(fly);
+    var card=document.createElement('div');card.className='art';
+    card.innerHTML='<b>'+title+'</b><div class="as">'+sub+'</div>';
+    $('dock').appendChild(card);
+  });
+}
+
+/* ===== 透明内核 ===== */
+function buildCore(){
+  var cm=$('coreMem');cm.innerHTML='';
+  MEMS.forEach(function(m){
+    var el=document.createElement('div');el.className='crow';
+    el.innerHTML='<span><b>'+m.k+'</b><br>'+m.v+'</span><span class="ct">记忆</span>';
+    cm.appendChild(el);
+  });
+}
+$('gem').addEventListener('click',function(){$('corePanel').classList.add('show');});
+$('coreX').onclick=function(){$('corePanel').classList.remove('show');};
+
+/* ===== ⌘K ===== */
+var CK=[
+  {g:'能力',t:'安排一次旅行'},{g:'能力',t:'规划本周日程'},{g:'能力',t:'给我放松建议'},
+  {g:'能力',t:'健康作息提醒'},{g:'能力',t:'制定学习计划'},{g:'能力',t:'陪我说说话'},
+  {g:'记忆',t:'休息偏好：安静人少'},{g:'记忆',t:'旅行偏好：温泉山野'},
+  {g:'历史',t:'周中减压计划'},{g:'历史',t:'睡眠习惯调整'}
+];
+var ckSel=0,ckF=CK;
+function renderCk(){
+  var q=$('cmdkI').value.trim().toLowerCase();
+  ckF=CK.filter(function(it){return !q||it.t.toLowerCase().indexOf(q)>=0||it.g.indexOf(q)>=0;});
+  if(ckSel>=ckF.length)ckSel=Math.max(0,ckF.length-1);
+  var L=$('cmdkL');L.innerHTML='';
+  if(!ckF.length){L.innerHTML='<div class="cempty">没有匹配</div>';return;}
+  var lastG='';
+  ckF.forEach(function(it,i){
+    if(it.g!==lastG){lastG=it.g;var g=document.createElement('div');g.className='ckg';g.textContent=it.g;L.appendChild(g);}
+    var b=document.createElement('button');
+    b.className='cki'+(i===ckSel?' sel':'');
+    b.textContent=it.t;
+    b.onclick=function(){pickCk(i);};
+    L.appendChild(b);
+  });
+}
+function openCk(){$('cmdkO').classList.add('open');$('cmdkI').value='';ckSel=0;renderCk();later(30,function(){$('cmdkI').focus();});}
+function closeCk(){$('cmdkO').classList.remove('open');}
+function pickCk(i){var it=ckF[i];if(!it)return;closeCk();dispatch(it.t);}
+$('cmdkO').onclick=function(e){if(e.target===$('cmdkO'))closeCk();};
+$('cmdkI').oninput=function(){ckSel=0;renderCk();};
+$('cmdkI').onkeydown=function(e){
+  if(e.key==='ArrowDown'){e.preventDefault();ckSel=Math.min(ckSel+1,ckF.length-1);renderCk();}
+  else if(e.key==='ArrowUp'){e.preventDefault();ckSel=Math.max(ckSel-1,0);renderCk();}
+  else if(e.key==='Enter'){e.preventDefault();pickCk(ckSel);}
+};
+window.addEventListener('keydown',function(e){
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('cmdkO').classList.contains('open')?closeCk():openCk();}
+  else if(e.key==='Escape'){closeCk();$('corePanel').classList.remove('show');document.body.classList.remove('depth');}
+});
+
+/* ===== 统一开口 ===== */
+function userSend(){
+  var v=$('inp').value.trim();
+  if(!v)return;
+  $('inp').value='';
+  say('user',v);
+  setMood('thinking');
+  later(900,function(){
+    setMood('speaking');
+    say('agent','收到。这件事我来接——星河已经开始流动了。');
+    later(700,function(){setMood('neutral');});
+  });
+}
+function dispatch(text){
+  document.body.classList.remove('depth');
+  $('inp').value=text;userSend();
+}
+
+/* ===== 场景 ===== */
+function runChain(){
+  resetAll();
+  say('user','帮我安排一个放松的周末');
+  setMood('thinking');
+  later(700,function(){activate('understand');});
+  later(1500,function(){
+    activate('recall');
+    setMood('speaking');
+    say('agent','我记得你喜欢安静的地方——温泉和山野都在你的偏好里，这周你又连加了四天班。');
+  });
+  later(2700,function(){activate('weigh');});
+  later(3700,function(){
+    activate('draft');
+    say('agent','我起草了两日方案：周六山野温泉（车程 1.5 小时，含午后静休），周日完全宅家修复。');
+    materialize('山野温泉两日行程','草案 · 待确认');
+  });
+  later(5000,function(){activate('review');});
+  later(6000,function(){
+    activate('handover');
+    setStatus('handover','waiting');
+    showLantern('行程草案：周六山野温泉 + 周日宅家修复。要按这个安排吗？',function(d){
+      setStatus('handover','done');
+      if(d==='confirm'){
+        say('agent','好——已写入你的日历和「周末彻底放松」目标。周六早上我会提前提醒你出发时间。');
+        later(500,function(){
+          activate('settle');
+          later(1200,function(){
+            setStatus('settle','done');
+            setMood('happy');
+            say('note','执行链安住 · 星河沉降为轻呼吸');
+            RIVER.settleAll();
+          });
+        });
+      }else if(d==='escalate'){
+        say('agent','好，我们再打磨细节——你想调整哪一段？');
+        setMood('neutral');
+      }else if(d==='defer'){
+        say('agent','不急，草案已经收进显形物码头，想好了随时叫我。');
+        setMood('neutral');
+      }else{
+        say('agent','明白，这次先不安排。你的疲劳我还是记着的。');
+        setMood('concerned');
+        later(1500,function(){setMood('rest');});
+      }
+    });
+  });
+}
+function sense(){
+  rippleFx();
+  setMood('concerned');
+  say('whisper','✦ 栖光注意到：你最近三天都在 23:30 后入睡，与目标偏离');
+  later(1600,function(){
+    say('agent','不是要说教——只是你的入睡时间一直在往后滑。今晚要不要我把提醒提前到 22:40？轻一点的那种。');
+  });
+  later(4200,function(){setMood('rest');});
+}
+function loop(){
+  setMood('happy');
+  say('agent','今天帮你把周末安顿好了，我自己也有点开心。');
+  later(2200,function(){
+    setMood('rest');
+    say('note','栖光回到陪伴态 · 光晕沉降');
+  });
+}
+function resetAll(){
+  clearTimers();hideLantern();
+  STEPS.forEach(function(s){status[s.id]='pending';});
+  RIVER.reset();renderSteps();
+  $('ribbon').innerHTML='';
+  setMood('neutral');
+}
+$('runB').onclick=runChain;
+$('senseB').onclick=sense;
+$('loopB').onclick=loop;
+$('resetB').onclick=resetAll;
+$('depthB').onclick=function(){document.body.classList.toggle('depth');};
+$('cmdkB2').onclick=openCk;
+$('sendBtn').onclick=userSend;
+$('inp').addEventListener('keydown',function(e){if(e.key==='Enter')userSend();});
+
+/* ===== 初始化 ===== */
+buildSteps();buildMotes();buildHorizon();buildGhosts();buildCore();
+setMood('neutral');
+say('note','栖光 · 域 — 无视图切换的场域范式原型');
+say('agent','你好，我是栖光。这里没有页面——我漂在哪里，你的注意力就在哪里。记忆在我周围环绕，目标在地平线上发光，历史藏在纵深里。随时开口。');
+</script>
+</body>
+</html>

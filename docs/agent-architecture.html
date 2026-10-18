@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖光 · Agent 架构图</title>
+<style>
+  :root{
+    --bg-0:#05080f; --bg-1:#0a1020; --bg-2:#0d1526;
+    --text:#e9f1ff; --muted:#8ba0c2; --muted-2:#6b7f9f;
+    --cyan:#6fd6ff;   /* 前端 */
+    --teal:#5ee6c0;   /* 执行/流 */
+    --azure:#7fb0ff;  /* Agent/服务端 */
+    --violet:#b48cff; /* 记忆/数据 */
+    --amber:#ffb86b;  /* 工具 */
+    --gold:#f6c062;   /* 人的环 */
+    --card:rgba(255,255,255,.028); --card-2:rgba(255,255,255,.05);
+    --line:rgba(140,175,225,.16); --radius:18px;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background:
+      radial-gradient(1100px 680px at 10% -8%, rgba(127,176,255,.14), transparent 60%),
+      radial-gradient(1000px 600px at 90% 6%, rgba(180,140,255,.12), transparent 62%),
+      radial-gradient(900px 560px at 50% 108%, rgba(94,230,192,.06), transparent 60%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1) 40%,var(--bg-2));
+    background-attachment:fixed;
+  }
+  .wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:44px 24px 70px}
+  header{text-align:center;margin-bottom:30px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.18em;color:var(--azure);
+    padding:6px 14px;border-radius:999px;border:1px solid rgba(127,176,255,.3);background:rgba(127,176,255,.07)}
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--azure);box-shadow:0 0 10px var(--azure)}
+  h1{font-size:38px;margin:16px 0 8px;font-weight:800;letter-spacing:.02em;
+     background:linear-gradient(92deg,#fff 8%,#bcd9ff 52%,#c9b2ff 96%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:14.5px;max-width:840px;margin:0 auto}
+
+  .layer{position:relative;border-radius:var(--radius);padding:20px 22px 22px;margin-top:20px;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(6px)}
+  .layer::before{content:"";position:absolute;left:0;top:0;height:3px;width:100%;border-radius:var(--radius) var(--radius) 0 0;
+    background:linear-gradient(90deg,var(--accent),transparent 78%)}
+  .lhead{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .lbadge{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;flex-shrink:0;
+    background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);
+    color:var(--accent);font-weight:800;font-size:14px}
+  .ltitle{font-size:18px;font-weight:700}
+  .lpath{font-size:11.5px;color:var(--muted-2);font-family:ui-monospace,Consolas,monospace}
+  .ldesc{color:var(--muted);font-size:12.8px;margin:0 0 4px}
+
+  .grid{display:grid;gap:12px;margin-top:14px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:920px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .box{border-radius:13px;padding:13px 15px;border:1px solid var(--line);background:rgba(255,255,255,.02);
+    transition:transform .2s var(--ease),border-color .2s var(--ease)}
+  .box:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  .box .bt{font-size:13.5px;font-weight:700;color:var(--tcol,var(--text));display:flex;align-items:center;gap:7px}
+  .box .bd{font-size:11.6px;color:var(--muted);margin-top:4px;line-height:1.55}
+  .code{font-family:ui-monospace,Consolas,monospace;font-size:10.8px;color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{font-size:10.8px;padding:4px 10px;border-radius:999px;color:var(--tcol,var(--text));
+    border:1px solid color-mix(in srgb,var(--tcol,var(--accent)) 30%,transparent);
+    background:color-mix(in srgb,var(--tcol,var(--accent)) 10%,transparent);white-space:nowrap}
+
+  /* ===== Agent 主循环 ===== */
+  .loop-core{border-radius:var(--radius);padding:26px 22px 22px;margin-top:20px;position:relative;
+    border:1px solid color-mix(in srgb,var(--azure) 32%,var(--line));
+    background:radial-gradient(120% 130% at 50% 0%, rgba(127,176,255,.11), transparent 60%),linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 24px 60px -34px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+  .loop-title{text-align:center;margin-bottom:4px}
+  .loop-title .t{font-size:19px;font-weight:800}
+  .loop-title .s{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .loop-row{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .step{display:inline-flex;align-items:center;gap:9px;padding:10px 14px;border-radius:13px;
+    border:1px solid color-mix(in srgb,var(--azure) 30%,var(--line));background:rgba(127,176,255,.07);white-space:nowrap}
+  .step b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(140deg,#8fc4ff,#5a8fe0);color:#06121f;font-size:12px;font-weight:800}
+  .step .lbl{font-size:12.8px;font-weight:700}
+  .step .sm{display:block;font-size:10px;color:var(--muted);font-weight:400;font-family:ui-monospace,Consolas,monospace}
+  .ar{color:var(--muted-2);font-size:16px;font-style:normal}
+  .loopback{margin:14px auto 0;max-width:860px;padding:10px 0 12px;text-align:center;
+    border:1px dashed color-mix(in srgb,var(--teal) 40%,var(--line));border-top:none;border-radius:0 0 16px 16px;
+    color:var(--teal);font-size:12.5px}
+  .loopback .warn{color:var(--amber)}
+  .down{text-align:center;color:var(--muted-2);font-size:18px;margin-top:10px}
+  .out-node{display:flex;align-items:center;justify-content:center;gap:10px;max-width:860px;margin:0 auto;
+    padding:12px 18px;border-radius:13px;border:1px solid color-mix(in srgb,var(--gold) 40%,transparent);
+    background:linear-gradient(180deg,rgba(246,192,98,.09),rgba(246,192,98,.02));color:var(--gold);font-weight:700;font-size:13.5px}
+
+  /* SSE 事件条 */
+  .sse{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:14px}
+  .ev{font-family:ui-monospace,Consolas,monospace;font-size:10.8px;padding:5px 11px;border-radius:8px;
+    color:var(--teal);border:1px solid color-mix(in srgb,var(--teal) 32%,transparent);background:color-mix(in srgb,var(--teal) 9%,transparent)}
+
+  .human{--tcol:var(--gold);border-color:color-mix(in srgb,var(--gold) 40%,transparent);
+    background:linear-gradient(180deg,rgba(246,192,98,.08),rgba(246,192,98,.02))}
+  footer{margin-top:40px;text-align:center;color:var(--muted-2);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker"><span class="dot"></span>XINGLAN · AGENT ARCHITECTURE</div>
+    <h1>栖光 · Agent 架构图</h1>
+    <p class="sub">栖光（星澜）的智能体架构实况：前端宿主 → Agent 主循环（组装上下文·思考·选工具·执行·观察·收敛）→ 能力装配（13 工具注册表）→ 记忆与数据（SQLite）→ 单进程服务端与调度，全部据当前代码绘制。</p>
+  </header>
+
+  <!-- ===== LLM 供应商实况 ===== -->
+  <section class="layer" style="--accent:var(--azure)">
+    <div class="lhead"><div class="lbadge">🧠</div>
+      <div><div class="ltitle">大模型 · DeepSeek 优先的双供应商适配</div><div class="lpath">server/llm/bailian.ts（实为 OpenAI 兼容适配层）· server/settings.ts 决定 chatProvider</div></div></div>
+    <p class="ldesc">对话主循环当前走 <b>DeepSeek</b>（<code>deepseek-chat</code>）；同一适配层可切百炼（通义 qwen）。解析逻辑：<code>resolveProvider()</code> — DeepSeek 已配置则优先，否则用百炼。</p>
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--azure)"><div class="bt">① DeepSeek · 当前生效</div>
+        <div class="bd">OpenAI 兼容端点 <code>api.deepseek.com</code>，模型 <code>deepseek-chat</code>（工具调用稳定）。</div>
+        <div class="chips"><span class="chip">deepseek-chat</span><span class="chip">优先级最高</span></div></div>
+      <div class="box" style="--tcol:var(--azure)"><div class="bt">② 百炼 · 备选</div>
+        <div class="bd">未配 DeepSeek 时回退 DashScope，模型 <code>qwen-plus</code>（可用 <code>BAILIAN_MODEL</code> 覆盖）。</div>
+        <div class="chips"><span class="chip">qwen-plus</span><span class="chip">fallback</span></div></div>
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">⚠ 推理模型降级</div>
+        <div class="bd"><code>deepseek-reasoner</code> 不支持 function calling / temperature，适配层自动降级处理。</div>
+        <div class="chips"><span class="chip">deepseek-reasoner</span><span class="chip">能力受限</span></div></div>
+    </div>
+  </section>
+
+  <!-- ===== 前端宿主 ===== -->
+  <section class="layer" style="--accent:var(--cyan)">
+    <div class="lhead"><div class="lbadge">⌂</div>
+      <div><div class="ltitle">前端宿主 · React</div><div class="lpath">src/App.tsx → pages/CustomerPage → components/XinglanShell</div></div></div>
+    <p class="ldesc">栖光的"身体"：一张舞台（Stage）承载此刻对话 / 我的 / 治理 / 音乐四个视图，一条常驻导航（Rail），一层浮层（Overlay）放确认与主动卡。所有"开口"统一经 <span class="code">dispatch()</span>。</p>
+    <div class="grid g4">
+      <div class="box" style="--tcol:var(--cyan)"><div class="bt">🎨 氛围</div>
+        <div class="bd">Canvas 星空（按 DPR 高清渲染）+ 星云辉光；情绪由对话驱动。</div>
+        <div class="chips"><span class="chip">StarField</span><span class="chip">xinglanMood</span></div></div>
+      <div class="box" style="--tcol:var(--cyan)"><div class="bt">💬 此刻对话</div>
+        <div class="bd">只承载当前会话；助手文本按 Markdown 上屏，内联步骤/产物/确认。</div>
+        <div class="chips"><span class="chip">ConversationView</span><span class="chip">Composer</span></div></div>
+      <div class="box" style="--tcol:var(--cyan)"><div class="bt">🗂️ 我的面板</div>
+        <div class="bd">跨会话的记忆 / 目标（提醒）/ 产物三域；目标卡片可完成·推迟·问栖光。</div>
+        <div class="chips"><span class="chip">DashboardPanel</span><span class="chip">GoalsPane</span></div></div>
+      <div class="box" style="--tcol:var(--cyan)"><div class="bt">🎵 音乐</div>
+        <div class="bd">黑胶唱片播放中；栖光点歌经动作桥直接驱动它。</div>
+        <div class="chips"><span class="chip">MusicPlayer</span><span class="chip">music events</span></div></div>
+    </div>
+  </section>
+
+  <div style="text-align:center;color:var(--muted-2);font-size:18px;margin:6px 0">↓ 用户输入 / 卡片动作 触发一次对话请求 ↓</div>
+
+  <!-- ===== Agent 主循环 ===== -->
+  <section class="loop-core">
+    <div class="loop-title">
+      <div class="t">🤖 Agent 主循环 · DeepSeek 驱动</div>
+      <div class="s">每轮在"组装上下文 → 思考吐字 → 选工具 → 执行 → 收观察"中迭代，收敛才上屏；栖光每一步都落到具体文件</div>
+    </div>
+    <div class="loop-row">
+      <span class="step"><b>1</b><span class="lbl">组装上下文<span class="sm">agent.ts · buildHistory</span></span></span><i class="ar">→</i>
+      <span class="step"><b>2</b><span class="lbl">思考·流式吐字<span class="sm">compat stream (deepseek)</span></span></span><i class="ar">→</i>
+      <span class="step"><b>3</b><span class="lbl">选择工具<span class="sm">activeToolDefs</span></span></span><i class="ar">→</i>
+      <span class="step"><b>4</b><span class="lbl">执行工具<span class="sm">execTool 超时+重试</span></span></span><i class="ar">→</i>
+      <span class="step"><b>5</b><span class="lbl">接收观察<span class="sm">SSE tool_result</span></span></span><i class="ar">→</i>
+      <span class="step"><b>6</b><span class="lbl">收敛判断<span class="sm">done / 落库</span></span></span>
+    </div>
+    <div class="loopback">
+      ↺ 未收敛 → 回到「② 思考 / ③ 选工具」继续迭代 &nbsp;·&nbsp; <span class="warn">⚠ 6s 无任何内容 → 引擎看门狗中断 → 本地兜底 <code>localFallback</code>，不让会话静默卡死</span>
+    </div>
+    <div class="sse">
+      <span class="ev">text</span><span class="ev">tool</span><span class="ev">tool_result</span><span class="ev">artifact</span>
+      <span class="ev">ask_user</span><span class="ev">music</span><span class="ev">notice</span><span class="ev">done</span>
+    </div>
+    <div class="down">↓ 收敛后上屏</div>
+    <div class="out-node">🙋 呈现 · 文本上屏 + 情绪演出（XinglanCore）+ 待确认时只亮「人的环」浮层</div>
+  </section>
+
+  <div style="text-align:center;color:var(--muted-2);font-size:18px;margin:6px 0">↑ 循环可触达的能力 ↓</div>
+
+  <!-- ===== 能力装配 ===== -->
+  <section class="layer" style="--accent:var(--amber)">
+    <div class="lhead"><div class="lbadge">🧰</div>
+      <div><div class="ltitle">能力装配 · 工具注册表</div><div class="lpath">server/tools/registry.ts · 一处定义，下发/执行/提示词三处同源派生</div></div></div>
+    <p class="ldesc">13 个工具按域分组；提示词里的"能力清单"与实际下发的 tools 数组同源，并按数据感知裁剪（无记忆不给 recall、无待办不给 get_schedule）。</p>
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">🧠 记忆</div>
+        <div class="chips"><span class="chip">recall_memory</span><span class="chip">save_memory</span></div></div>
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">⏰ 节律 / 待办</div>
+        <div class="chips"><span class="chip">set_reminder</span><span class="chip">check_reminder_step</span><span class="chip">get_schedule</span><span class="chip">checkin_mood</span></div></div>
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">📦 产物</div>
+        <div class="chips"><span class="chip">open_artifact</span><span class="chip">create_artifact</span><span class="chip">update_artifact</span></div></div>
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">🎵 音乐</div>
+        <div class="bd">选曲经 <code>setMusicAction</code> 回流客户端；控制播放/切歌/音量。</div>
+        <div class="chips"><span class="chip">play_music</span><span class="chip">control_music</span></div></div>
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">🙋 交互</div>
+        <div class="bd">需用户拍板时抛 <code>ask_user</code>，落到暖金「人的环」浮层。</div>
+        <div class="chips"><span class="chip">ask_user</span></div></div>
+      <div class="box" style="--tcol:var(--amber)"><div class="bt">🌐 联网检索</div>
+        <div class="bd">不靠 LLM，走独立搜索源 API，多级降级：Brave → Tavily → SerpAPI → Bocha → DashScope → DDG。</div>
+        <div class="chips"><span class="chip">web_lookup</span><span class="chip">tools/web.ts</span></div></div>
+    </div>
+  </section>
+
+  <div class="grid g2" style="margin-top:20px">
+    <!-- 记忆与数据 -->
+    <section class="layer" style="--accent:var(--violet);margin-top:0">
+      <div class="lhead"><div class="lbadge">🗄</div>
+        <div><div class="ltitle">记忆与数据 · SQLite</div><div class="lpath">server/db.ts → db/{core,conversations,memories,reminders,moods,artifacts,proactive,music}</div></div></div>
+      <p class="ldesc">对话与节律长期沉淀；<b>due_ts</b>（epoch）是到期/逾期/排序的唯一判定依据，原文另存仅供展示。</p>
+      <div class="grid" style="grid-template-columns:1fr">
+        <div class="box" style="--tcol:var(--violet)"><div class="bt">表</div>
+          <div class="chips"><span class="chip">sessions</span><span class="chip">messages</span><span class="chip">memories</span><span class="chip">reminders</span><span class="chip">moods</span><span class="chip">artifacts</span><span class="chip">artifact_versions</span><span class="chip">proactive_cards</span><span class="chip">tracks</span><span class="chip">agent_runs</span></div></div>
+        <div class="box" style="--tcol:var(--violet)"><div class="bt">时间归一</div>
+          <div class="bd"><code>due.ts parseDue()</code> 把自由文本解析成 due_ts；解析不出即为空，绝不猜测。</div>
+          <div class="chips"><span class="chip">parseDue</span><span class="chip">backfillDueTs</span><span class="chip">recur 周期</span></div></div>
+      </div>
+    </section>
+
+    <!-- 服务端与调度 -->
+    <section class="layer" style="--accent:var(--teal);margin-top:0">
+      <div class="lhead"><div class="lbadge">⚙</div>
+        <div><div class="ltitle">服务端 · 单进程 + 主动调度</div><div class="lpath">server/index.ts（装配）· routes/* · scheduler.ts</div></div></div>
+      <p class="ldesc">一个 Express 进程同源托管前端与 API；调度器每 60s 主动生成卡片。</p>
+      <div class="grid" style="grid-template-columns:1fr">
+        <div class="box" style="--tcol:var(--teal)"><div class="bt">路由域</div>
+          <div class="chips"><span class="chip">chat(SSE)</span><span class="chip">context</span><span class="chip">userData</span><span class="chip">proactive</span><span class="chip">artifacts</span><span class="chip">sessions</span><span class="chip">music</span><span class="chip">meta</span><span class="chip">admin</span></div></div>
+        <div class="box" style="--tcol:var(--teal)"><div class="bt">主动调度 · 60s</div>
+          <div class="bd">扫描待办与节律，生成主动卡；卡片动作服务端执行（完成/推迟）或交前端（追问/开视图）。</div>
+          <div class="chips"><span class="chip">scheduler</span><span class="chip">proactive</span></div></div>
+        <div class="box" style="--tcol:var(--teal)"><div class="bt">音乐流</div>
+          <div class="bd"><code>/api/music/stream/:id</code> 支持 Range 206；曲库只存路径+元数据，音频留在原处。</div>
+          <div class="chips"><span class="chip">Range 206</span><span class="chip">resolveTrackPath</span></div></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 确认单一入口 -->
+  <section class="layer human" style="--accent:var(--gold)">
+    <div class="lhead"><div class="lbadge" style="color:var(--gold)">🙋</div>
+      <div><div class="ltitle" style="color:var(--gold)">人的环 · 确认单一入口</div><div class="lpath">.nx-human-moment · ask_user / pendingQ</div></div></div>
+    <p class="ldesc" style="color:var(--muted)">待确认时全系统<b>只有</b>这一处暖金浮层亮起（对话内联的确认卡仅在已决策后留记录，禁止两份同现）；确认 UI 全局唯一。</p>
+  </section>
+
+  <footer>栖光 · 星澜 · Agent 架构据当前代码绘制（routes/chat · agent · llm/bailian[DeepSeek 优先] · tools/registry · tools/web · db · scheduler · music）</footer>
+</div>
+</body>
+</html>

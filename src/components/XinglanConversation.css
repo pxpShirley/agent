@@ -1,0 +1,339 @@
+/* =========================================================
+   对话（重新设计）
+   只承载当前这场对话：双栏对话流 + 内联执行情况/执行结果/待确认。
+   不混入历史会话、不混入跨会话记忆——那些归「我的·灵境」与 ⌘K。
+   配色纪律：冰青 = 系统语言；暖金 = 仅人的环 / 需要你。
+   ========================================================= */
+
+.cv {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* —— 顶栏：对话身份 + 新对话 —— */
+.cv-bar {
+  position: sticky;
+  top: -10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 12px;
+  margin: 0 -2px 4px;
+  background: linear-gradient(to bottom, var(--panel-solid) 62%, color-mix(in srgb, var(--panel-solid) 0%, transparent));
+}
+.cv-bar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.cv-bar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 8px var(--brand-glow, var(--brand));
+}
+.cv-new {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--text-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  transition: var(--dur-fast) var(--ease);
+}
+.cv-new:hover {
+  color: var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 42%, transparent);
+  background: var(--brand-soft);
+}
+
+/* —— 消息滚动区 —— */
+.cv-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.cv-tail { height: 2px; flex-shrink: 0; }
+
+/* —— 行 —— */
+.cv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+}
+.cv-row.me { flex-direction: row-reverse; }
+
+/* 头像 */
+.cv-avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+}
+.cv-avatar.me {
+  color: #fff;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--brand) 80%, #fff), var(--brand));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
+}
+.cv-avatar.agent {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface-1));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 24%, transparent);
+}
+
+/* —— 气泡 —— */
+.cv-bubble.me {
+  max-width: 76%;
+  background: var(--brand-soft);
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent);
+  border-radius: 16px 16px 6px 16px;
+  padding: 11px 14px;
+}
+.cv-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.16));
+}
+.cv-text {
+  font-size: 14px;
+  line-height: 1.68;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cv-ts {
+  display: block;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cv-ts.agent { text-align: left; }
+
+/* —— 思考中 —— */
+.cv-thinking {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.cv-thinking-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  opacity: 0.4;
+  animation: cv-blink 1.2s infinite ease-in-out;
+}
+.cv-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.cv-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cv-blink {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* —— 执行情况 —— */
+.cv-steps {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface-1));
+  border: 1px solid color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.cv-steps-h {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--brand);
+  margin-bottom: 7px;
+}
+.cv-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12.5px;
+}
+.cv-step-ico {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  background: color-mix(in srgb, var(--brand) 20%, transparent);
+  color: var(--brand);
+}
+.cv-step.run .cv-step-ico {
+  background: color-mix(in srgb, var(--gold) 22%, transparent);
+  color: var(--gold);
+  animation: cv-step-pulse 1s ease-in-out infinite;
+}
+.cv-step.run .cv-step-name { color: var(--text-2); }
+.cv-step.done .cv-step-ico { background: color-mix(in srgb, #34d399 22%, transparent); color: #34d399; }
+.cv-step.err .cv-step-ico { background: color-mix(in srgb, #f87171 26%, transparent); color: #f87171; }
+.cv-step-name { color: var(--text); flex: 1; min-width: 0; }
+.cv-step-role {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.14);
+}
+@keyframes cv-step-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+/* —— 执行结果 —— */
+.cv-res {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #5fe1ff 6%, var(--surface-1));
+  border: 1px solid rgba(95, 225, 255, 0.22);
+}
+.cv-res-h {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #5fe1ff;
+  margin-bottom: 7px;
+}
+.cv-artifact {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+  transition: var(--dur-fast) var(--ease);
+  cursor: pointer;
+}
+.cv-artifact:last-child { margin-bottom: 0; }
+.cv-artifact:hover {
+  border-color: rgba(95, 225, 255, 0.5);
+  background: color-mix(in srgb, #5fe1ff 10%, var(--surface-2));
+}
+.cv-artifact-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: #5fe1ff;
+  background: rgba(95, 225, 255, 0.14);
+}
+.cv-artifact-main { flex: 1; min-width: 0; }
+.cv-artifact-t { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.cv-artifact-d {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* —— 待你确认（内联，暖金仅此处与人的环）—— */
+.cv-pending {
+  margin-top: 10px;
+}
+.cv-pending .confirm-card {
+  border-color: color-mix(in srgb, var(--gold) 30%, transparent);
+  background: color-mix(in srgb, var(--gold) 8%, var(--surface-1));
+}
+
+/* —— Markdown 渲染（助手输出）—— 沿用既有设计令牌，不写死颜色 */
+.cv-md {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  line-height: 1.72;
+}
+.cv-md > :first-child { margin-top: 0; }
+.cv-md > :last-child { margin-bottom: 0; }
+.cv-md p { margin: 0 0 10px; }
+.cv-md h1, .cv-md h2, .cv-md h3, .cv-md h4 {
+  margin: 14px 0 8px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.cv-md h1 { font-size: 18px; }
+.cv-md h2 { font-size: 16px; }
+.cv-md h3 { font-size: 14.5px; }
+.cv-md h4 { font-size: 13.5px; }
+.cv-md ul, .cv-md ol { margin: 0 0 10px; padding-left: 20px; }
+.cv-md li { margin: 3px 0; }
+.cv-md a {
+  color: var(--brand);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+}
+.cv-md a:hover { border-bottom-color: var(--brand); }
+.cv-md strong { color: var(--text-2); font-weight: 700; }
+.cv-md em { color: var(--text-2); }
+.cv-md code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface-2));
+  color: color-mix(in srgb, var(--brand) 70%, var(--text));
+}
+.cv-md pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.cv-md pre code { background: none; padding: 0; color: var(--text); }
+.cv-md blockquote {
+  margin: 0 0 10px;
+  padding: 4px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--brand) 50%, transparent);
+  color: var(--text-3);
+}
+.cv-md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.cv-md table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 12.5px; }
+.cv-md th, .cv-md td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; }
+.cv-md th { background: color-mix(in srgb, var(--brand) 8%, var(--surface-2)); color: var(--text-2); }

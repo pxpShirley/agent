@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>星澜 v4 · 全新界面高保真原型</title>
+<style>
+:root{
+  --bg:#050912; --bg-1:#0a1120;
+  --surface:rgba(18,28,48,.62); --surface-solid:rgba(14,22,40,.86);
+  --brand:#6fd6ff; --brand-600:#3aa6e0; --brand-glow:rgba(111,214,255,.45); --brand-soft:rgba(111,214,255,.14);
+  --gold:#f6c062; --gold-soft:rgba(246,192,98,.14); --gold-glow:rgba(246,192,98,.42);
+  --success:#5ee6a8; --warn:#ffc46b; --danger:#ff7a7a;
+  --text:#e8f2ff; --text-2:#a9bdd8; --text-3:#6f829d;
+  --border:rgba(140,170,220,.16);
+  --r-ctl:8px; --r-card:12px; --r-panel:16px;
+  --dur-fast:.14s; --dur:.22s; --dur-slow:.42s; --ease:cubic-bezier(.22,.61,.36,1);
+  --top-h:56px; --nav-w:240px; --pres-w:320px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);overflow:hidden;
+  font:400 14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ===== 背景：深空星境（canvas，按 DPR 缩放） ===== */
+#sky{position:fixed;inset:0;z-index:0}
+.scrim{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,rgba(3,6,14,.55) 0%,transparent 20%,transparent 74%,rgba(3,6,14,.6) 100%)}
+.vig{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 45%,transparent 42%,rgba(3,6,14,.5) 78%,rgba(3,6,14,.85) 100%)}
+
+/* ===== 骨架 ===== */
+.app{position:relative;z-index:2;height:100vh;display:grid;
+  grid-template-columns:var(--nav-w) 1fr var(--pres-w);
+  grid-template-rows:var(--top-h) 1fr;
+  grid-template-areas:"top top top" "nav main pres"}
+.app.collapsed{grid-template-columns:var(--nav-w) 1fr 0}
+
+/* 顶栏 */
+.top{grid-area:top;display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:var(--surface-solid);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);z-index:6}
+.brand{display:flex;align-items:center;gap:9px;font-weight:650;letter-spacing:.3px}
+.brand i{width:26px;height:26px;border-radius:9px;background:linear-gradient(140deg,#8fe6ff,#3aa6e0);
+  box-shadow:0 5px 14px -5px var(--brand-glow)}
+.cmdk{margin-left:6px;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;
+  background:rgba(140,170,220,.08);border:1px solid var(--border);color:var(--text-2);font-size:12.5px}
+.cmdk:hover{border-color:var(--brand);color:var(--text)}
+.cmdk kbd{font:inherit;font-size:11px;padding:1px 6px;border-radius:5px;background:rgba(140,170,220,.14)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.status{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2)}
+.status i{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 8px var(--success)}
+.icon-btn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--text-2);
+  border:1px solid transparent}
+.icon-btn:hover{background:rgba(140,170,220,.1);color:var(--text)}
+
+/* 左导航 */
+.nav{grid-area:nav;background:var(--surface);backdrop-filter:blur(16px);border-right:1px solid var(--border);
+  padding:14px 10px;display:flex;flex-direction:column;gap:4px;overflow:auto}
+.nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;
+  color:var(--text-2);font-size:13.5px;text-align:left;width:100%;transition:background var(--dur-fast) var(--ease)}
+.nav-item:hover{background:rgba(140,170,220,.08);color:var(--text)}
+.nav-item.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.nav-item.on::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:2px;height:18px;border-radius:2px;background:var(--brand)}
+.nav-item svg{width:17px;height:17px;flex-shrink:0;opacity:.9}
+.nav-item .cnt{margin-left:auto;font-size:11px;color:var(--text-3)}
+.nav-sp{flex:1}
+.nav-foot{font-size:11px;color:var(--text-3);padding:10px 12px;line-height:1.6;border-top:1px solid var(--border)}
+
+/* 主区 */
+.main{grid-area:main;min-width:0;min-height:0;display:flex;flex-direction:column;padding:16px 20px 18px;gap:14px;overflow:hidden}
+.page-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.page-head h2{margin:0;font-size:19px;font-weight:650;letter-spacing:.2px}
+.page-head p{margin:0;font-size:12.5px;color:var(--text-3)}
+.head-actions{margin-left:auto;display:flex;gap:8px}
+.body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}
+
+/* 通用控件 */
+.btn{height:36px;padding:0 14px;border-radius:var(--r-ctl);font-size:13px;font-weight:600;
+  display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);
+  background:rgba(140,170,220,.08);color:var(--text-2);transition:all var(--dur-fast) var(--ease)}
+.btn:hover{color:var(--text);border-color:var(--brand)}
+.btn.primary{background:linear-gradient(140deg,#7fdcff,#3aa6e0);color:#04141a;border:0;
+  box-shadow:0 8px 18px -10px var(--brand-glow)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger);border-color:rgba(255,122,122,.35)}
+.btn.sm{height:30px;padding:0 11px;font-size:12px}
+.input{height:36px;padding:0 12px;border-radius:var(--r-ctl);background:rgba(140,170,220,.06);
+  border:1px solid var(--border);color:var(--text);font:inherit;font-size:13px;width:100%}
+.input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.chip{padding:5px 12px;border-radius:999px;font-size:12px;color:var(--text-2);
+  border:1px solid var(--border);background:rgba(140,170,220,.06)}
+.chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600}
+.card{background:var(--surface);backdrop-filter:blur(14px);border:1px solid var(--border);
+  border-radius:var(--r-card);padding:14px}
+.card:hover{border-color:rgba(111,214,255,.34)}
+.row{display:flex;align-items:center;gap:12px}
+
+/* 对话页 */
+.chat-wrap{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:78%;padding:11px 14px;border-radius:14px;font-size:13.5px;line-height:1.72}
+.msg.user{align-self:flex-end;background:linear-gradient(140deg,rgba(111,214,255,.92),rgba(58,166,224,.92));color:#04141a}
+.msg.agent{align-self:flex-start;background:var(--surface);border:1px solid var(--border)}
+.agent-card{align-self:flex-start;max-width:86%;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-card);padding:13px 14px;display:flex;flex-direction:column;gap:10px}
+.sec-h{font-size:11px;font-weight:650;color:var(--text-3);letter-spacing:.4px}
+.step{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2)}
+.step i{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;
+  background:rgba(94,230,168,.16);color:var(--success)}
+.step.run i{background:var(--brand-soft);color:var(--brand)}
+.art{display:flex;gap:10px;align-items:center;padding:10px;border-radius:10px;
+  background:rgba(111,214,255,.07);border:1px solid rgba(111,214,255,.22)}
+.art b{font-size:13px}
+.art span{font-size:11.5px;color:var(--text-3)}
+.composer{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:14px;
+  background:var(--surface-solid);border:1px solid var(--border)}
+.composer input{flex:1;background:none;border:0;outline:none;color:var(--text);font:inherit;font-size:13.5px}
+.composer input::placeholder{color:var(--text-3)}
+
+/* 列表页（记忆/待办/产物） */
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:var(--r-card);
+  background:var(--surface);border:1px solid var(--border)}
+.item:hover{border-color:rgba(111,214,255,.32)}
+.item .t{font-size:13.5px;margin:0 0 3px}
+.item .d{font-size:12px;color:var(--text-3);margin:0}
+.item .side{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--text-3)}
+.badge.warn{color:var(--warn);border-color:rgba(255,196,107,.35);background:rgba(255,196,107,.1)}
+.badge.ok{color:var(--success);border-color:rgba(94,230,168,.3);background:rgba(94,230,168,.1)}
+.badge.rec{color:var(--brand);border-color:rgba(111,214,255,.3);background:var(--brand-soft)}
+.cbx{width:20px;height:20px;border-radius:6px;border:1.6px solid var(--border);flex-shrink:0;
+  display:grid;place-items:center;font-size:11px;color:transparent;margin-top:2px}
+.cbx:hover{border-color:var(--brand)}
+.cbx.done{background:var(--success);border-color:var(--success);color:#04141a}
+.progress{height:6px;border-radius:999px;background:rgba(140,170,220,.14);overflow:hidden;min-width:80px}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,#7fdcff,#3aa6e0)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:44px 20px;
+  border:1px dashed var(--border);border-radius:var(--r-card);color:var(--text-3);text-align:center}
+.empty b{color:var(--text-2);font-size:14px}
+
+/* 设置在场面板 */
+.pres{grid-area:pres;background:var(--surface);backdrop-filter:blur(16px);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;gap:12px;padding:16px 14px;overflow:auto;transition:opacity var(--dur) var(--ease)}
+.app.collapsed .pres{display:none}
+.sprite-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0}
+.sprite{width:150px;height:158px}
+.state{font-size:12.5px;color:var(--text-2)}
+.state b{color:var(--brand)}
+.caption{font-size:11.5px;color:var(--text-3);text-align:center;min-height:16px}
+.mood-lab{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.mood-lab button{font-size:10px;padding:3px 7px;border-radius:999px;border:1px solid var(--border);color:var(--text-3)}
+.mood-lab button.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+.percept{display:flex;flex-direction:column;gap:8px}
+.pv-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2)}
+.pv-row b{margin-left:auto;color:var(--text)}
+
+/* 在场球 */
+.orb-fab{position:fixed;right:20px;bottom:20px;z-index:7;width:56px;height:56px;border-radius:50%;
+  background:radial-gradient(circle at 42% 32%,#fff,#eaf8ff 32%,#bfe8ff 68%,rgba(95,208,255,.4));
+  box-shadow:0 12px 30px -12px var(--brand-glow),0 0 0 1px rgba(140,200,255,.24);
+  display:none;align-items:center;justify-content:center;font-size:11px;color:#2b4a68;font-weight:600}
+.app.collapsed .orb-fab{display:flex}
+.orb-fab.gold{background:radial-gradient(circle at 42% 32%,#fff8ea,#ffe6b8 34%,#f6c062 70%,rgba(246,192,98,.4));
+  box-shadow:0 12px 30px -12px var(--gold-glow),0 0 0 1px rgba(246,192,98,.4);animation:pulse 1.9s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+
+/* 人的环：暖金确认卡（全局唯一） */
+.hm{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:24px}
+.hm.on{display:flex}
+.hm-scrim{position:absolute;inset:0;background:rgba(3,6,14,.62);backdrop-filter:blur(3px)}
+.hm-card{position:relative;width:min(430px,100%);background:var(--surface-solid);border-radius:var(--r-panel);
+  border:1px solid rgba(246,192,98,.34);box-shadow:0 0 0 1px rgba(246,192,98,.16),0 30px 70px -26px var(--gold-glow);
+  padding:16px 17px;animation:pop var(--dur-slow) var(--ease)}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.hm-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.hm-tag{font-size:11.5px;font-weight:650;color:var(--gold);background:var(--gold-soft);
+  padding:3px 10px;border-radius:999px}
+.hm-q{margin:0 0 13px;font-size:14px;line-height:1.7}
+.hm-acts{display:flex;flex-wrap:wrap;gap:8px}
+.hm-acts .btn.primary{background:linear-gradient(140deg,#ffd694,#f6c062);color:#2a1c05}
+/* 命令面板 */
+.pal{position:fixed;inset:0;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:12vh 20px 20px}
+.pal.on{display:flex}
+.pal-scrim{position:absolute;inset:0;background:rgba(3,6,14,.6);backdrop-filter:blur(3px)}
+.pal-box{position:relative;width:min(560px,100%);background:var(--surface-solid);border:1px solid var(--border);
+  border-radius:var(--r-panel);box-shadow:0 30px 70px -28px #000;overflow:hidden;animation:pop var(--dur) var(--ease)}
+.pal-in{width:100%;height:52px;padding:0 16px;background:none;border:0;border-bottom:1px solid var(--border);
+  color:var(--text);font:inherit;font-size:14px;outline:none}
+.pal-list{max-height:52vh;overflow:auto;padding:6px}
+.pal-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;
+  font-size:13.5px;color:var(--text-2);text-align:left}
+.pal-item:hover,.pal-item.sel{background:var(--brand-soft);color:var(--brand)}
+.pal-item small{margin-left:auto;font-size:11px;color:var(--text-3)}
+/* Toast */
+.toasts{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;flex-direction:column;gap:8px}
+.toast{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;font-size:13px;
+  background:var(--surface-solid);border:1px solid var(--border);box-shadow:0 18px 40px -20px #000;
+  animation:tin var(--dur) var(--ease)}
+@keyframes tin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.toast button{color:var(--brand);font-weight:650;font-size:12.5px}
+
+/* 设置页 */
+.set-sec{display:flex;flex-direction:column;gap:10px}
+.set-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-card);
+  background:var(--surface);border:1px solid var(--border)}
+.set-row .side{margin-left:auto;display:flex;align-items:center;gap:8px}
+.sw{width:40px;height:22px;border-radius:999px;background:rgba(140,170,220,.2);position:relative;transition:background var(--dur-fast)}
+.sw.on{background:var(--brand)}
+.sw i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left var(--dur-fast) var(--ease)}
+.sw.on i{left:21px}
+
+/* ===== 响应式 ===== */
+@media (max-width:1279px){:root{--pres-w:280px}}
+@media (max-width:1023px){
+  .app{grid-template-columns:var(--nav-w) 1fr 0}
+  .app .pres{display:none}
+  .app .orb-fab{display:flex}
+}
+@media (max-width:767px){
+  .app{grid-template-columns:1fr;grid-template-rows:var(--top-h) 1fr 58px;
+    grid-template-areas:"top" "main" "tabbar"}
+  .nav{grid-area:tabbar;flex-direction:row;border-right:0;border-top:1px solid var(--border);
+    padding:6px 4px;gap:2px;overflow:visible;background:var(--surface-solid)}
+  .nav-item{flex-direction:column;gap:3px;font-size:10.5px;padding:6px 2px;min-height:44px;align-items:center;justify-content:center}
+  .nav-item.on::before{display:none}
+  .nav-item .cnt{display:none}
+  .nav-sp,.nav-foot{display:none}
+  .main{padding:12px 14px 14px}
+  .orb-fab{bottom:74px;right:14px}
+  .msg,.agent-card{max-width:94%}
+  .top{padding:0 12px;gap:8px}
+  .cmdk span,.cmdk kbd{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas><div class="scrim"></div><div class="vig"></div>
+
+<div class="app" id="app">
+  <!-- 顶栏 -->
+  <header class="top">
+    <div class="brand"><i></i>星澜</div>
+    <button class="cmdk" id="cmdkBtn"><span>唤起能力</span><kbd>⌘K</kbd></button>
+    <div class="top-right">
+      <div class="status"><i></i>在线</div>
+      <button class="icon-btn" id="collapseBtn" title="收起/展开在场面板">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg>
+      </button>
+      <button class="icon-btn" title="设置">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 8.5l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.6V4a2 2 0 1 1 4 0v.6a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 20.9 11H21a2 2 0 1 1 0 4h-.9z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 左导航 -->
+  <nav class="nav" id="nav">
+    <button class="nav-item on" data-page="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg>对话</button>
+    <button class="nav-item" data-page="mem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>记忆<span class="cnt num">12</span></button>
+    <button class="nav-item" data-page="task"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l2 2 4-4"/><rect x="3" y="4" width="18" height="17" rx="3"/></svg>待办<span class="cnt num">5</span></button>
+    <button class="nav-item" data-page="art"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/></svg>产物<span class="cnt num">3</span></button>
+    <button class="nav-item" data-page="set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 8.5l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.6V4a2 2 0 1 1 4 0v.6a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 20.9 11H21a2 2 0 1 1 0 4h-.9z"/></svg>设置</button>
+    <div class="nav-sp"></div>
+    <div class="nav-foot">冰青 = 系统语言<br/>暖金 = 只属于「人的环」</div>
+  </nav>
+
+  <!-- 主区 -->
+  <main class="main">
+    <div class="page-head">
+      <div><h2 id="pgTitle">对话</h2><p id="pgSub">和栖光一起把事情推进下去</p></div>
+      <div class="head-actions" id="pgActions"></div>
+    </div>
+    <div class="body" id="pgBody"></div>
+  </main>
+
+  <!-- 右：在场面板 -->
+  <aside class="pres">
+    <div class="sprite-wrap">
+      <div class="sprite" id="sprite"></div>
+      <div class="state">栖光 · <b id="moodLabel">静候</b></div>
+      <div class="caption" id="spriteCap">今天想先做点什么？</div>
+    </div>
+    <div class="mood-lab" id="moodLab"></div>
+    <div class="percept">
+      <div class="sec-h">此刻感知</div>
+      <div class="pv-row">待办未完成<b class="num">5</b></div>
+      <div class="pv-row">记忆条数<b class="num">12</b></div>
+      <div class="pv-row">最近产物<b>杭州周末游</b></div>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+      <button class="btn primary sm" id="askBtn">模拟一次「需要你确认」</button>
+      <div style="font-size:11px;color:var(--text-3);line-height:1.6">点情绪标签可预览 8 种演出（上一版做的形象能力全部保留）</div>
+    </div>
+  </aside>
+
+  <button class="orb-fab" id="fab">栖光</button>
+</div>
+
+<!-- 人的环 -->
+<div class="hm" id="hm"><div class="hm-scrim" data-close></div>
+  <div class="hm-card" role="dialog" aria-label="需要你的决策">
+    <div class="hm-head"><span class="hm-tag">需要你确认</span>
+      <span style="font-size:11.5px;color:var(--text-3)">暖金只在这里出现</span></div>
+    <p class="hm-q" id="hmQ">要我顺手把「周五带伞」和「周六 7:30 出发」两个提醒都设好吗？</p>
+    <div class="hm-acts">
+      <button class="btn primary" data-dec="approve">✓ 直接批准</button>
+      <button class="btn" data-dec="edit">改后批准</button>
+      <button class="btn" data-dec="escalate">转交人工</button>
+      <button class="btn" data-dec="defer">稍后处理</button>
+      <button class="btn ghost" data-dec="cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 命令面板 -->
+<div class="pal" id="pal"><div class="pal-scrim" data-close></div>
+  <div class="pal-box">
+    <input class="pal-in" id="palIn" placeholder="搜索能力 / 记忆 / 待办…" />
+    <div class="pal-list" id="palList"></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ================= 星空背景（DPR 感知 · 静谧 + 流星） ================= */
+(() => {
+  const cvs = document.getElementById('sky'), ctx = cvs.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W, H, stars = [], shoots = [], raf = 0, paused = false, last = 0, prev = performance.now();
+  const P = { far: '150,180,235', near: '205,232,255', hot: '111,214,255' };
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function build() {
+    const n = Math.max(120, Math.min(420, Math.round((W * H) / 6200)));
+    stars = Array.from({ length: n }, () => {
+      const d = Math.random();
+      return { x: Math.random() * W, y: Math.random() * H, r: .35 + d * 1.6, a: .16 + d * .62,
+        s: (.005 + d * .026) * (Math.random() > .5 ? 1 : .6), sway: Math.random() * 6.28,
+        tw: Math.random() * 6.28, tws: rnd(.0006, .0022), d };
+    });
+  }
+  function resize() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    cvs.width = Math.round(W * dpr); cvs.height = Math.round(H * dpr);
+    cvs.style.width = W + 'px'; cvs.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); build();
+  }
+  function render(t) {
+    const dt = Math.min(48, t - prev); prev = t;
+    ctx.clearRect(0, 0, W, H);
+    for (const s of stars) {
+      if (!reduce) {
+        s.y -= s.s * dt * .06;
+        s.x += Math.sin(t * .0004 + s.sway) * .12 * s.d;
+        if (s.y < -2) { s.y = H + 2; s.x = Math.random() * W; }
+      }
+      const tw = reduce ? 1 : .68 + .32 * Math.sin(t * s.tws + s.tw);
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283);
+      ctx.fillStyle = `rgba(${s.d > .6 ? P.near : P.far},${(s.a * tw).toFixed(3)})`; ctx.fill();
+      if (s.d > .93) {
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 3.2, 0, 6.283);
+        ctx.fillStyle = `rgba(${P.hot},${(.08 * tw).toFixed(3)})`; ctx.fill();
+      }
+    }
+    if (!reduce && t - last > 4600 + Math.random() * 6000) {
+      last = t;
+      const fl = Math.random() > .35, sp = rnd(.55, .95);
+      shoots.push({ x: fl ? rnd(-.1, .5) * W : rnd(.5, 1.1) * W, y: rnd(-.05, .4) * H,
+        vx: (fl ? 1 : -1) * rnd(6, 10) * sp, vy: rnd(3.2, 5.6) * sp, life: 0, max: rnd(620, 980), len: rnd(90, 180) });
+    }
+    for (let i = shoots.length - 1; i >= 0; i--) {
+      const s = shoots[i]; s.life += dt;
+      const k = s.life / s.max;
+      if (k >= 1) { shoots.splice(i, 1); continue; }
+      s.x += s.vx * dt * .06; s.y += s.vy * dt * .06;
+      const f = Math.sin(Math.PI * k), n = Math.hypot(s.vx, s.vy) || 1;
+      const tx = s.x - s.vx / n * s.len, ty = s.y - s.vy / n * s.len;
+      const g = ctx.createLinearGradient(s.x, s.y, tx, ty);
+      g.addColorStop(0, `rgba(255,255,255,${(.9 * f).toFixed(3)})`);
+      g.addColorStop(.3, `rgba(${P.hot},${(.5 * f).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${P.hot},0)`);
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(tx, ty); ctx.stroke();
+    }
+    if (!paused) raf = requestAnimationFrame(render);
+  }
+  addEventListener('resize', () => { resize(); if (reduce) render(performance.now()); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { paused = true; cancelAnimationFrame(raf); }
+    else if (paused) { paused = false; prev = performance.now(); raf = requestAnimationFrame(render); }
+  });
+  resize();
+  if (reduce) render(performance.now()); else raf = requestAnimationFrame(render);
+})();
+
+/* ================= 栖光精灵（8 种情绪） ================= */
+const SPRITE = `<svg viewBox="0 0 200 210" width="100%" height="100%">
+<defs><radialGradient id="g1" cx="44%" cy="30%" r="82%">
+<stop offset="0%" stop-color="#fff"/><stop offset="30%" stop-color="#eaf8ff"/>
+<stop offset="66%" stop-color="#bfe8ff"/><stop offset="100%" stop-color="rgba(95,208,255,.34)"/></radialGradient>
+<radialGradient id="g2" cx="50%" cy="42%" r="56%">
+<stop offset="0%" stop-color="rgba(255,255,255,.85)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>
+<ellipse cx="71" cy="190" rx="17" ry="10" fill="url(#g1)"/><ellipse cx="129" cy="190" rx="17" ry="10" fill="url(#g1)"/>
+<path d="M100 26 C150 26 175 64 175 108 C175 153 150 192 100 196 C50 192 25 153 25 108 C25 64 50 26 100 26 Z" fill="url(#g1)"/>
+<ellipse cx="100" cy="118" rx="42" ry="50" fill="url(#g2)" opacity=".5"/>
+<ellipse class="cheek" cx="58" cy="118" rx="12" ry="7.5" fill="rgba(255,150,180,.34)"/>
+<ellipse class="cheek" cx="142" cy="118" rx="12" ry="7.5" fill="rgba(255,150,180,.34)"/>
+<g class="eyes"><g><ellipse class="ball" cx="80" cy="100" rx="9.2" ry="12" fill="#2b4a68"/>
+<circle class="hl" cx="83.4" cy="95" r="3.4" fill="#fff"/><circle class="hl" cx="77" cy="104" r="1.7" fill="rgba(255,255,255,.75)"/>
+<path class="arc" d="M70 101 Q80 92 90 101" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/>
+<path class="closed" d="M70 104 Q80 110 90 104" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/></g>
+<g><ellipse class="ball" cx="120" cy="100" rx="9.2" ry="12" fill="#2b4a68"/>
+<circle class="hl" cx="123.4" cy="95" r="3.4" fill="#fff"/><circle class="hl" cx="117" cy="104" r="1.7" fill="rgba(255,255,255,.75)"/>
+<path class="arc" d="M110 101 Q120 92 130 101" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/>
+<path class="closed" d="M110 104 Q120 110 130 104" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/></g></g>
+<path class="brow" d="M68 88 Q80 83 92 88" fill="none" stroke="#2b4a68" stroke-width="2.4" stroke-linecap="round" style="opacity:0"/>
+<path class="brow" d="M108 88 Q120 83 132 88" fill="none" stroke="#2b4a68" stroke-width="2.4" stroke-linecap="round" style="opacity:0"/>
+<path class="mouth" d="M92 118 Q100 125 108 118" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round"/>
+<path class="grin" d="M86 119 Q100 136 114 119" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/>
+<path class="sad" d="M92 127 Q100 121 108 127" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/>
+<path class="small" d="M94 122 Q100 124 106 122" fill="none" stroke="#2b4a68" stroke-width="2.6" stroke-linecap="round" style="display:none"/>
+<g class="think" style="opacity:0"><circle cx="150" cy="52" r="3" fill="#2b4a68"/><circle cx="162" cy="64" r="3" fill="#2b4a68"/><circle cx="150" cy="76" r="3" fill="#2b4a68"/></g>
+<g transform="translate(100 16)"><path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z" fill="#fff" opacity=".92"/></g>
+<circle class="spark" cx="160" cy="72" r="3.2" fill="#fff" opacity=".7"/><circle class="spark" cx="42" cy="86" r="2.6" fill="#fff" opacity=".6"/>
+</svg>`;
+
+const MOODS = {
+  calm:      { label: '静候',     cap: '今天想先做点什么？' },
+  listening: { label: '聆听中',   cap: '我在听，你说。' },
+  thinking:  { label: '思考中',   cap: '让我把这件事拆开看看。' },
+  speaking:  { label: '诉说中',   cap: '已经整理好了，你看看。' },
+  waiting:   { label: '等你',     cap: '这件事得你拍板。' },
+  happy:     { label: '为你高兴', cap: '办妥了 ✅' },
+  concerned: { label: '有些在意', cap: '这一步没成，我换个办法。' },
+  sleeping:  { label: '安睡',     cap: '……' },
+};
+document.getElementById('sprite').innerHTML = SPRITE;
+const sprite = document.getElementById('sprite');
+function setMood(m) {
+  const q = (s) => sprite.querySelectorAll(s);
+  q('.ball').forEach(e => e.style.display = '');
+  q('.hl').forEach(e => e.style.display = '');
+  q('.arc').forEach(e => e.style.display = 'none');
+  q('.closed').forEach(e => e.style.display = 'none');
+  q('.brow').forEach(e => e.style.opacity = '0');
+  q('.mouth').forEach(e => e.style.display = '');
+  q('.grin').forEach(e => e.style.display = 'none');
+  q('.sad').forEach(e => e.style.display = 'none');
+  q('.small').forEach(e => e.style.display = 'none');
+  q('.think').forEach(e => e.style.opacity = '0');
+  q('.cheek').forEach(e => e.setAttribute('fill', 'rgba(255,150,180,.34)'));
+  q('.spark').forEach(e => e.style.opacity = '.7');
+  const on = (s, v) => q(s).forEach(e => { if (v === 'o') e.style.opacity = '.95'; else e.style.display = v; });
+  if (m === 'happy') { q('.ball').forEach(e => e.style.display = 'none'); q('.hl').forEach(e => e.style.display = 'none'); on('.arc', ''); q('.mouth').forEach(e => e.style.display = 'none'); on('.grin', ''); q('.cheek').forEach(e => e.setAttribute('fill', 'rgba(255,128,160,.58)')); }
+  if (m === 'thinking') { on('.brow', 'o'); on('.think', 'o'); q('.mouth').forEach(e => e.style.display = 'none'); on('.small', ''); }
+  if (m === 'concerned') { on('.brow', 'o'); q('.mouth').forEach(e => e.style.display = 'none'); on('.sad', ''); }
+  if (m === 'sleeping') { q('.ball').forEach(e => e.style.display = 'none'); q('.hl').forEach(e => e.style.display = 'none'); on('.closed', ''); q('.spark').forEach(e => e.style.opacity = '.16'); }
+  if (m === 'listening') { q('.mouth').forEach(e => e.style.display = 'none'); on('.small', ''); q('.spark').forEach(e => e.style.opacity = '.95'); }
+  if (m === 'speaking') { on('.arc', ''); q('.ball').forEach(e => e.style.display = 'none'); }
+  document.getElementById('moodLabel').textContent = MOODS[m].label;
+  document.getElementById('spriteCap').textContent = MOODS[m].cap;
+  document.querySelectorAll('#moodLab button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  const fab = document.getElementById('fab');
+  fab.classList.toggle('gold', m === 'waiting');
+}
+const lab = document.getElementById('moodLab');
+Object.entries(MOODS).forEach(([k, v]) => {
+  const b = document.createElement('button');
+  b.textContent = v.label; b.dataset.m = k;
+  b.onclick = () => setMood(k);
+  lab.appendChild(b);
+});
+setMood('calm');
+
+/* ================= Toast（可撤销） ================= */
+function toast(msg, undo) {
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span>${msg}</span>`;
+  if (undo) {
+    const b = document.createElement('button');
+    b.textContent = '撤销';
+    b.onclick = () => { undo(); el.remove(); toast('已撤销'); };
+    el.appendChild(b);
+  }
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), undo ? 5000 : 3200);
+}
+
+/* ================= 页面 ================= */
+const PAGES = {
+  chat: { t: '对话', s: '和栖光一起把事情推进下去', a: '' , r: renderChat },
+  mem:  { t: '记忆', s: '它记住的关于你的事 · 可编辑、可合并', a: '<button class="btn sm" id="addMem">新建记忆</button>', r: renderMem },
+  task: { t: '待办', s: '提醒与习惯 · 打卡后周期项自动滚下一期', a: '<button class="btn sm primary">新建待办</button>', r: renderTask },
+  art:  { t: '产物', s: '行程 · 报告 · 清单，带版本与回滚', a: '<button class="btn sm">导出</button>', r: renderArt },
+  set:  { t: '设置', s: '外观 · 引擎 · 数据', a: '', r: renderSet },
+};
+const body = document.getElementById('pgBody');
+document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.nav-item').forEach(x => x.classList.toggle('on', x === b));
+  const p = PAGES[b.dataset.page];
+  document.getElementById('pgTitle').textContent = p.t;
+  document.getElementById('pgSub').textContent = p.s;
+  document.getElementById('pgActions').innerHTML = p.a;
+  const add = document.getElementById('addMem');
+  if (add) add.onclick = () => toast('已新建记忆', () => {});
+  p.r();
+});
+
+function renderChat() {
+  body.innerHTML = `
+    <div class="chat-wrap">
+      <div class="msg user">帮我规划这周末的杭州短途游，顺便帮我设置一下提醒</div>
+      <div class="agent-card">
+        <div style="font-size:13.5px;line-height:1.72">收到～我先拆解任务，再检索天气与景点资料，最后让复核智能体把关。</div>
+        <div><div class="sec-h">执行情况</div>
+          <div class="step"><i>✓</i>规划</div><div class="step"><i>✓</i>web_lookup</div>
+          <div class="step"><i>✓</i>save_memory</div><div class="step run"><i>○</i>复核中</div></div>
+        <div><div class="sec-h">执行结果</div>
+          <div class="art"><span>🧭</span><div><b>杭州周末游 · 草案</b><br/><span>Day1 大奇山 → 瑶琳仙境 · v1</span></div></div></div>
+      </div>
+      <div class="msg agent">已记下：妈妈生日在 10 月下旬。</div>
+      <div style="align-self:flex-start;max-width:86%" class="card">
+        <div class="hm-tag" style="display:inline-block">需要你确认</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:6px">已批准并执行 ✅ · 决策记录留在这里，确认只发生一次</div>
+      </div>
+    </div>
+    <div class="composer"><input placeholder="有什么想交给栖光的？" /><button class="btn primary sm">发送</button></div>`;
+}
+function renderMem() {
+  body.innerHTML = `
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <input class="input" style="max-width:280px" placeholder="搜索记忆…" />
+      <button class="chip on">全部</button><button class="chip">偏好</button><button class="chip">事实</button><button class="chip">冲突</button>
+    </div>
+    <div class="list">
+      <div class="item"><div><p class="t">咖啡偏好：浅烘、不加糖</p><p class="d">偏好 · 更新于 10-03</p></div>
+        <div class="side"><span class="badge">偏好</span><button class="btn sm ghost">编辑</button></div></div>
+      <div class="item"><div><p class="t">妈妈生日：10 月下旬</p><p class="d">事实 · 更新于 今天</p></div>
+        <div class="side"><span class="badge">事实</span><button class="btn sm ghost">编辑</button></div></div>
+      <div class="item"><div><p class="t">通勤方式：地铁 4 号线 ⚠ 与「开车通勤」冲突</p><p class="d">冲突 · 2 条相似</p></div>
+        <div class="side"><span class="badge warn">冲突</span><button class="btn sm" id="mergeBtn">一键合并</button></div></div>
+      <div class="item"><div><p class="t">过敏：芒果</p><p class="d">事实 · 更新于 09-12</p></div>
+        <div class="side"><span class="badge">事实</span><button class="btn sm ghost">编辑</button></div></div>
+    </div>`;
+  const mb = document.getElementById('mergeBtn');
+  if (mb) mb.onclick = () => toast('已保留最完整的一条并合并其余', () => toast('已恢复被合并的记忆'));
+}
+function renderTask() {
+  const rows = [
+    { t: '周五带伞提醒', d: '今天 21:00 · 一次性', b: 'rec', p: 0 },
+    { t: '每天喝水 2L', d: '每天 09:00 · 周期', b: 'rec', p: 0.6 },
+    { t: '妈妈生日礼物', d: '10-20 · 3 个子步骤', b: '', p: 0.33 },
+    { t: '交房租', d: '已逾期 2 天', b: 'warn', p: 0 },
+    { t: '周会准备', d: '每周三 10:00 · 周期', b: 'rec', p: 0 },
+  ];
+  body.innerHTML = `<div class="row" style="gap:8px;flex-wrap:wrap">
+      <button class="chip on">全部</button><button class="chip">今天</button><button class="chip">逾期</button><button class="chip">周期</button>
+    </div><div class="list">` + rows.map((r, i) => `
+      <div class="item">
+        <button class="cbx${i === 1 ? ' done' : ''}" data-t="${r.t}">✓</button>
+        <div style="flex:1"><p class="t" style="${i === 1 ? 'text-decoration:line-through;opacity:.6' : ''}">${r.t}</p>
+          <p class="d">${r.d}</p>${r.p ? `<div class="progress" style="margin-top:7px;max-width:180px"><i style="width:${r.p * 100}%"></i></div>` : ''}</div>
+        <div class="side">${r.b === 'rec' ? '<span class="badge rec">🔁 周期</span>' : ''}${r.b === 'warn' ? '<span class="badge warn">逾期</span>' : ''}
+          <button class="btn sm">打卡</button><button class="btn sm ghost">编辑</button></div>
+      </div>`).join('') + `</div>`;
+  body.querySelectorAll('.cbx').forEach(c => c.onclick = () => {
+    const done = c.classList.toggle('done');
+    toast(`已${done ? '完成' : '取消完成'}「${c.dataset.t}」`, () => c.classList.toggle('done'));
+  });
+}
+function renderArt() {
+  body.innerHTML = `<div class="grid">
+    <div class="card"><div class="row"><b>杭州周末游 · 草案</b><span class="badge" style="margin-left:auto">v3</span></div>
+      <p style="font-size:12px;color:var(--text-3);margin:8px 0 12px">Day1 大奇山 → 瑶琳仙境<br/>Day2 茅家埠 → 龙井村</p>
+      <div class="row"><button class="btn sm primary">打开</button><button class="btn sm ghost">历史版本</button></div></div>
+    <div class="card"><div class="row"><b>本周复盘</b><span class="badge" style="margin-left:auto">v1</span></div>
+      <p style="font-size:12px;color:var(--text-3);margin:8px 0 12px">完成 4 / 6，逾期 1<br/>下周建议：先啃硬骨头</p>
+      <div class="row"><button class="btn sm primary">打开</button><button class="btn sm ghost">导出</button></div></div>
+    <div class="card"><div class="row"><b>搬家清单</b><span class="badge" style="margin-left:auto">v2</span></div>
+      <p style="font-size:12px;color:var(--text-3);margin:8px 0 12px">12 项 · 已完成 7<br/>含证件、宽带、保洁</p>
+      <div class="row"><button class="btn sm primary">打开</button><button class="btn sm ghost">导出</button></div></div>
+  </div>`;
+}
+function renderSet() {
+  body.innerHTML = `<div class="set-sec">
+    <div class="sec-h">外观</div>
+    <div class="set-row"><div><p class="t" style="margin:0">星空背景</p><p class="d" style="margin:0;font-size:12px;color:var(--text-3)">深空星境 · 三层视差 + 偶尔流星</p></div>
+      <div class="side"><div class="sw on" data-sw><i></i></div></div></div>
+    <div class="set-row"><div><p class="t" style="margin:0">精简模式</p><p class="d" style="margin:0;font-size:12px;color:var(--text-3)">降低模糊与粒子密度</p></div>
+      <div class="side"><div class="sw" data-sw><i></i></div></div></div>
+    <div class="sec-h" style="margin-top:6px">引擎</div>
+    <div class="set-row"><div><p class="t" style="margin:0">推理模型</p><p class="d" style="margin:0;font-size:12px;color:var(--text-3)">qwen-plus · 百炼</p></div>
+      <div class="side"><button class="btn sm">更改</button></div></div>
+    <div class="sec-h" style="margin-top:6px">数据</div>
+    <div class="set-row"><div><p class="t" style="margin:0">导出全部数据</p><p class="d" style="margin:0;font-size:12px;color:var(--text-3)">记忆 / 待办 / 产物 · JSON</p></div>
+      <div class="side"><button class="btn sm">导出</button></div></div>
+    <div class="set-row"><div><p class="t" style="margin:0;color:var(--danger)">清空所有记忆</p><p class="d" style="margin:0;font-size:12px;color:var(--text-3)">不可恢复，需二次确认</p></div>
+      <div class="side"><button class="btn sm danger">清空</button></div></div>
+  </div>`;
+  body.querySelectorAll('[data-sw]').forEach(s => s.onclick = () => s.classList.toggle('on'));
+}
+renderChat();
+
+/* ================= 人的环 ================= */
+const hm = document.getElementById('hm');
+document.getElementById('askBtn').onclick = () => { hm.classList.add('on'); setMood('waiting'); };
+document.getElementById('fab').onclick = () => { hm.classList.add('on'); setMood('waiting'); };
+hm.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => {
+  hm.classList.remove('on');
+  const map = { approve: '已批准并执行', edit: '已按你的修改批准', escalate: '已转交人工', defer: '已稍后处理', cancel: '已取消' };
+  toast(map[b.dataset.dec], () => { hm.classList.add('on'); setMood('waiting'); });
+  setMood(b.dataset.dec === 'cancel' ? 'concerned' : 'happy');
+  setTimeout(() => setMood('calm'), 3200);
+});
+hm.querySelectorAll('[data-close]').forEach(e => e.onclick = () => hm.classList.remove('on'));
+
+/* ================= 命令面板 ================= */
+const pal = document.getElementById('pal');
+const ITEMS = [
+  { t: '新建待办', k: '任务' }, { t: '看看今天有什么安排', k: '对话' },
+  { t: '打开产物《杭州周末游》', k: '产物' }, { t: '记一条记忆', k: '记忆' },
+  { t: '切换到暖金主题', k: '外观' }, { t: '导出全部数据', k: '数据' },
+];
+function openPal() {
+  pal.classList.add('on');
+  document.getElementById('palIn').value = '';
+  drawPal('');
+  document.getElementById('palIn').focus();
+}
+function drawPal(q) {
+  document.getElementById('palList').innerHTML = ITEMS
+    .filter(i => !q || i.t.includes(q))
+    .map(i => `<button class="pal-item">${i.t}<small>${i.k}</small></button>`).join('');
+}
+document.getElementById('cmdkBtn').onclick = openPal;
+document.getElementById('palIn').oninput = (e) => drawPal(e.target.value);
+pal.querySelectorAll('[data-close]').forEach(e => e.onclick = () => pal.classList.remove('on'));
+
+/* ================= 全局键盘 / 折叠 ================= */
+addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.classList.toggle('on'); if (pal.classList.contains('on')) { drawPal(''); document.getElementById('palIn').focus(); } return; }
+  if (e.key === 'Escape') { hm.classList.remove('on'); pal.classList.remove('on'); }
+});
+document.getElementById('collapseBtn').onclick = () => document.getElementById('app').classList.toggle('collapsed');
+</script>
+</body>
+</html>

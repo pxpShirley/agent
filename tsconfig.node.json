@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    /* run-evals 用顶层 await 做「先设 CHAT_DB_PATH 再动态 import 数据层」——
+       没有它就得把整个运行器塞进 async IIFE，反而更绕 */
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "outDir": "node_modules/.cache/tsc-node",
+    "tsBuildInfoFile": "node_modules/.cache/tsc-node/.tsbuildinfo"
+  },
+  "include": ["vite.config.ts", "server/**/*.ts", "evals/**/*.ts", "scripts/run-evals.ts"]
+}

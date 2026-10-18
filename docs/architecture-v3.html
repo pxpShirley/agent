@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>栖光 · 架构演进图 v3</title>
+<style>
+  :root{
+    --bg-0:#05080f; --bg-1:#0a1020; --bg-2:#0d1526;
+    --text:#e9f1ff; --muted:#8ba0c2; --muted-2:#6b7f9f;
+    --cyan:#6fd6ff; --teal:#5ee6c0; --azure:#7fb0ff;
+    --violet:#b48cff; --amber:#ffb86b; --gold:#f6c062;
+    --card:rgba(255,255,255,.028); --card-2:rgba(255,255,255,.05);
+    --line:rgba(140,175,225,.16); --radius:18px;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;
+    background:
+      radial-gradient(1100px 680px at 10% -8%, rgba(127,176,255,.14), transparent 60%),
+      radial-gradient(1000px 600px at 90% 6%, rgba(180,140,255,.12), transparent 62%),
+      radial-gradient(900px 560px at 50% 108%, rgba(94,230,192,.06), transparent 60%),
+      linear-gradient(180deg,var(--bg-0),var(--bg-1) 40%,var(--bg-2));
+    background-attachment:fixed;
+  }
+  .wrap{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:44px 24px 70px}
+  header{text-align:center;margin-bottom:28px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.18em;color:var(--violet);
+    padding:6px 14px;border-radius:999px;border:1px solid rgba(180,140,255,.3);background:rgba(180,140,255,.07)}
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px var(--violet)}
+  h1{font-size:37px;margin:16px 0 8px;font-weight:800;letter-spacing:.02em;
+     background:linear-gradient(92deg,#fff 8%,#bcd9ff 50%,#d3c0ff 96%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:14.5px;max-width:830px;margin:0 auto}
+
+  /* 图例 */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:24px 0 6px}
+  .lg{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+      padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card)}
+  .sw{width:14px;height:10px;border-radius:3px}
+  .sw.solid{border:1.5px solid var(--cyan);background:rgba(111,214,255,.14)}
+  .sw.dash{border:1.5px dashed var(--violet);background:rgba(180,140,255,.10)}
+
+  /* 层 */
+  .layer{position:relative;border-radius:var(--radius);padding:20px 22px 22px;margin-top:18px;
+    border:1px solid var(--line);background:linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05)}
+  .layer::before{content:"";position:absolute;left:0;top:0;height:3px;width:100%;border-radius:var(--radius) var(--radius) 0 0;
+    background:linear-gradient(90deg,var(--accent),transparent 78%)}
+  .layer.future{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 42%,transparent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 5%,transparent),rgba(255,255,255,.015))}
+  .lhead{display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap}
+  .lbadge{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;flex-shrink:0;
+    background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);
+    color:var(--accent);font-weight:800;font-size:13px}
+  .ltitle{font-size:18px;font-weight:700}
+  .lpath{font-size:11.5px;color:var(--muted-2);font-family:ui-monospace,Consolas,monospace}
+  .tagnew{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;color:#1a0f2e;
+    background:linear-gradient(140deg,#c9b2ff,#a98cff);letter-spacing:.04em}
+  .taglive{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;color:var(--cyan);
+    border:1px solid color-mix(in srgb,var(--cyan) 36%,transparent);background:rgba(111,214,255,.08)}
+  .ldesc{color:var(--muted);font-size:12.8px;margin:2px 0 0}
+
+  .grid{display:grid;gap:12px;margin-top:14px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:920px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .box{border-radius:13px;padding:13px 15px;border:1px solid var(--line);background:rgba(255,255,255,.02)}
+  .box.future{border-style:dashed;border-color:color-mix(in srgb,var(--accent) 40%,transparent);
+    background:color-mix(in srgb,var(--accent) 4%,transparent)}
+  .box .bt{font-size:13.3px;font-weight:700;color:var(--tcol,var(--text));display:flex;align-items:center;gap:7px}
+  .box .bd{font-size:11.6px;color:var(--muted);margin-top:4px;line-height:1.55}
+  .code{font-family:ui-monospace,Consolas,monospace;font-size:10.6px;color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{font-size:10.6px;padding:4px 10px;border-radius:999px;color:var(--tcol,var(--text));
+    border:1px solid color-mix(in srgb,var(--tcol,var(--accent)) 30%,transparent);
+    background:color-mix(in srgb,var(--tcol,var(--accent)) 10%,transparent);white-space:nowrap}
+
+  /* 主循环（保持不变，高亮） */
+  .loop-core{border-radius:var(--radius);padding:22px 20px;margin-top:18px;position:relative;
+    border:1px solid color-mix(in srgb,var(--cyan) 34%,var(--line));
+    background:radial-gradient(120% 130% at 50% 0%, rgba(111,214,255,.09), transparent 60%),linear-gradient(180deg,var(--card-2),var(--card));
+    box-shadow:0 24px 60px -34px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+  .loop-title{text-align:center}
+  .loop-title .t{font-size:18px;font-weight:800}
+  .loop-title .s{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .loop-row{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:16px}
+  .step{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border-radius:12px;
+    border:1px solid color-mix(in srgb,var(--cyan) 30%,var(--line));background:rgba(111,214,255,.07);white-space:nowrap}
+  .step b{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(140deg,#9fd8ff,#5aa8e0);color:#06121f;font-size:11.5px;font-weight:800}
+  .step .lbl{font-size:12.5px;font-weight:700}
+
+  .flow{text-align:center;color:var(--muted-2);font-size:17px;margin:4px 0}
+
+  /* 路线图 */
+  .road{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+  @media(max-width:920px){.road{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.road{grid-template-columns:1fr}}
+  .ph{position:relative;border-radius:14px;padding:15px 16px;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--card-2),var(--card))}
+  .ph::after{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 3px 3px;
+    background:linear-gradient(90deg,var(--accent),transparent)}
+  .ph .pn{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+  .ph .pt{font-size:13.2px;font-weight:700;margin:4px 0 6px}
+  .ph .pd{font-size:11.5px;color:var(--muted);line-height:1.55}
+  .ph ul{margin:9px 0 0;padding-left:16px;font-size:11.5px;color:var(--muted)}
+  .ph li{margin-bottom:3px}
+
+  .no{margin-top:22px;border-radius:14px;padding:15px 18px;border:1px dashed var(--line);
+    background:rgba(255,255,255,.015);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .no .t{font-size:12.5px;font-weight:700;color:var(--muted)}
+  .no .items{display:flex;flex-wrap:wrap;gap:7px}
+  .no .items span{font-size:11px;padding:4px 11px;border-radius:999px;color:var(--muted-2);
+    border:1px dashed var(--line)}
+  footer{margin-top:38px;text-align:center;color:var(--muted-2);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker"><span class="dot"></span>ARCHITECTURE v3 · EVOLUTION BLUEPRINT</div>
+    <h1>栖光 · 架构演进图 v3</h1>
+    <p class="sub">基于 <code>docs/ARCHITECTURE-v3.md</code> 的目标架构：L0 主循环保持不动，在其上叠加 Context Engine、记忆分层、Skills 与 Evals&amp;Trace 四层。本期不含鉴权与沙箱。</p>
+  </header>
+
+  <div class="legend">
+    <span class="lg"><i class="sw solid"></i>现状已落地</span>
+    <span class="lg"><i class="sw dash"></i>v3 待建</span>
+    <span class="lg">L0 主循环：设计正确，仅补三处（见 L0+）</span>
+  </div>
+
+  <!-- ===== L4 Evals & Trace ===== -->
+  <section class="layer future" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">L4</div>
+      <div><div class="ltitle">Evals &amp; Trace · 评估与可观测</div><div class="lpath">agent_spans 表 · evals/ 目录 · npm run eval</div></div>
+      <span class="tagnew">待建 · P0 优先</span></div>
+    <p class="ldesc">一切改动（prompt / 模型 / 上下文策略）的安全网。<b>红线：trace 只读观测，任何情况下不得回灌模型上下文</b>（会自我污染）。</p>
+    <div class="grid g2">
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🔍 Trace 视图</div>
+        <div class="bd"><code>agent_runs</code> 只记一轮结果，看不到"为什么调这个工具"。新增 <code>agent_spans</code> 表，主循环每步落 span（iter/kind/name/input/output/ms），治理面板可展开每步耗时与入参出参。</div>
+        <div class="chips"><span class="chip">agent_spans</span><span class="chip">治理面板 trace 视图</span><span class="chip">只读</span></div></div>
+      <div class="box future" style="--tcol:var(--violet)"><div class="bt">🧪 Evals 回归网</div>
+        <div class="bd">判定<b>不用 LLM 打分</b>，用可复现规则：<code>mustInclude / mustNotInclude / toolCalled / noHallucinate</code>。首批 4 条用例对齐已知痛点。</div>
+        <div class="chips"><span class="chip">npm run eval</span><span class="chip">多轮指代补全</span><span class="chip">婉拒→放歌</span><span class="chip">空泛反问防线</span><span class="chip">产物读取必调工具</span></div></div>
+    </div>
+  </section>
+
+  <div class="flow">▲ 评估结果反哺下面各层调优</div>
+
+  <!-- ===== L3 Skills ===== -->
+  <section class="layer future" style="--accent:var(--amber)">
+    <div class="lhead"><div class="lbadge">L3</div>
+      <div><div class="ltitle">Skills · 能力包化</div><div class="lpath">server/skills/types.ts · Skill{ name, description, loadInstructions, tools }</div></div>
+      <span class="tagnew">待建 · P3</span></div>
+    <p class="ldesc">把"某一类任务的做法"抽成可插拔包。提示词只列 name+description 省 token，命中后才展开详细做法。首批候选：睡眠作息 / 行程规划 / 产物整理。</p>
+    <div class="grid g3">
+      <div class="box future" style="--tcol:var(--amber)"><div class="bt">按需加载</div>
+        <div class="bd">说明书是<b>代码</b>（沿用单进程部署），非运行时文件；命中才 <code>loadInstructions()</code>。</div>
+        <div class="chips"><span class="chip">省 token</span></div></div>
+      <div class="box future" style="--tcol:var(--amber)"><div class="bt">解耦能力</div>
+        <div class="bd">新增能力不改主循环，与"能力解耦"设计原则对齐。</div>
+        <div class="chips"><span class="chip">tools声明依赖</span></div></div>
+      <div class="box future" style="--tcol:var(--amber)"><div class="bt">为何排后</div>
+        <div class="bd">能力包化是<b>组织性收益</b>，不解决当下"聊得久"，故排在上下文引擎之后。</div>
+        <div class="chips"><span class="chip">P3</span></div></div>
+    </div>
+  </section>
+
+  <div class="flow">▲ 为主循环提供可插拔能力</div>
+
+  <!-- ===== L1 Context Engine ===== -->
+  <section class="layer future" style="--accent:var(--teal)">
+    <div class="lhead"><div class="lbadge">L1</div>
+      <div><div class="ltitle">Context Engine · 上下文引擎</div><div class="lpath">server/context/{budget,summarize,retrieval,assemble}.ts</div></div>
+      <span class="tagnew">待建 · P1 最高优先</span></div>
+    <p class="ldesc">不再靠"截断"维持上下文，改为<b>预算驱动的装配器</b>。<b>铁律：<code>assembleContext()</code> 是主循环获取上下文的唯一出口</b>；长度由模型 token 窗口动态分配，禁止魔法数字。</p>
+    <div class="grid g4">
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">① Token 预算器</div>
+        <div class="bd"><code>allocate()</code> 把窗口切给 system/memory/tools/history；<code>resolveWindow(model)</code> 读模型上限（不硬编码）。</div>
+        <div class="chips"><span class="chip">budget.ts</span><span class="chip">消灭 12轮/6000字符</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">② 滚动摘要</div>
+        <div class="bd"><code>compactOldTurns()</code> 保留近 K 轮原文，更早的异步压成摘要（只压事实结论，<b>不删 DB</b>）。</div>
+        <div class="chips"><span class="chip">summarize.ts</span><span class="chip">异步·幂等</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">③ 装配器</div>
+        <div class="bd"><code>assembleContext()</code> 唯一出口；迁移时保留旧 <code>buildHistory</code> 一版作 fallback 可切回。</div>
+        <div class="chips"><span class="chip">assemble.ts</span><span class="chip">灰度可回退</span></div></div>
+      <div class="box future" style="--tcol:var(--teal)"><div class="bt">④ 记忆召回钩子</div>
+        <div class="bd">从"取最近12条"改相关性召回（见 L2），装配器在此注入，预留 embedding 接口。</div>
+        <div class="chips"><span class="chip">retrieval.ts</span><span class="chip">可换实现</span></div></div>
+    </div>
+  </section>
+
+  <!-- ===== L2 Memory ===== -->
+  <section class="layer" style="--accent:var(--violet)">
+    <div class="lhead"><div class="lbadge">L2</div>
+      <div><div class="ltitle">Memory · 分层与检索</div><div class="lpath">memories / messages / artifacts / tracks / agent_runs · recallForPrompt()</div></div>
+      <span class="taglive">检索化已落地 10-08</span></div>
+    <p class="ldesc">四层记忆各司其职：会话记忆进上下文、长期画像按相关性召回、项目事实由工具按需读、运行轨迹<b>只做可观测不进上下文</b>。</p>
+    <div class="grid g4">
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">会话记忆<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">messages 表；现状按预算内滚动摘要 + 近轮原文（摘要部分待建）。</div>
+        <div class="chips"><span class="chip">messages</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">长期画像 · 检索化<span class="taglive" style="margin-left:auto">已落地 10-08</span></div>
+        <div class="bd"><code>selectMemories()</code>（<code>server/memory.ts</code>）：相关性 .6 + 新鲜度 .3 + 类型 .1，<b>按字符预算贪心截断</b>——条数是结果不是前提。预注入与 <code>recall_memory</code> <b>共用同一份实现</b>，杜绝两处漂移。</div>
+        <div class="chips"><span class="chip">memories</span><span class="chip">charBudget 1800</span><span class="chip">同源</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">项目事实<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">artifacts / tracks，<b>不注入上下文</b>，由 open_artifact 等工具按需读取。</div>
+        <div class="chips"><span class="chip">artifacts</span><span class="chip">tracks</span></div></div>
+      <div class="box" style="--tcol:var(--violet)"><div class="bt">运行轨迹<span class="taglive" style="margin-left:auto">已落地</span></div>
+        <div class="bd">agent_runs 已记录 tools_used/outcome/model <b>+ 四列 span（iterations / tool_calls_count / parallel_rounds / latency_ms）</b>；<code>GET /api/admin/loop-stats</code> 可读。完整 <code>agent_spans</code> 回放留到 L4。</div>
+        <div class="chips"><span class="chip">agent_runs</span><span class="chip">不进上下文</span></div></div>
+    </div>
+  </section>
+
+  <div class="flow">▼ 装配后的上下文喂给主循环</div>
+
+  <!-- ===== L0 主循环（不变） ===== -->
+  <section class="loop-core">
+    <div class="loop-title">
+      <div class="t">🤖 L0 · Agent 主循环　<span class="taglive">骨架不变</span></div>
+      <div class="s">标准 ReAct 形态，限 6 轮（<code>MAX_AGENT_ITERATIONS=6</code>）；设计正确规范，仅需下方 L0+ 三处补强</div>
+    </div>
+    <div class="loop-row">
+      <span class="step"><b>1</b><span class="lbl">组装上下文</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>2</b><span class="lbl">思考·流式吐字</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>3</b><span class="lbl">选择工具</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>4</b><span class="lbl">执行工具</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>5</b><span class="lbl">接收观察</span></span><i style="color:var(--muted-2)">→</i>
+      <span class="step"><b>6</b><span class="lbl">收敛判断</span></span>
+    </div>
+    <div class="sse" style="display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:14px">
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">text</span>
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">tool</span>
+      <span style="font-family:ui.monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">tool_result</span>
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">artifact</span>
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">ask_user</span>
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">music</span>
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">notice</span>
+      <span style="font-family:ui-monospace,Consolas,monospace;font-size:10.6px;padding:5px 11px;border-radius:8px;color:var(--teal);border:1px solid rgba(94,230,192,.32);background:rgba(94,230,192,.09)">done</span>
+    </div>
+  </section>
+
+  <!-- ===== L0+ 主循环补强 ===== -->
+  <section class="layer future" style="--accent:var(--cyan)">
+    <div class="lhead"><div class="lbadge">L0+</div>
+      <div><div class="ltitle">主循环补强 · 三处（骨架不变）</div><div class="lpath">server/llm/bailian.ts · 主循环 for 迭代体</div></div>
+      <span class="taglive">①③ 已落地 10-08 · ② 待建</span></div>
+    <p class="ldesc">L0 骨架已是标准 ReAct（迭代上限 / 流式 / <code>tool_calls</code> 与 <code>role:'tool'</code> 严格回写 / <code>ask_user</code> 人在环中断），<b>设计正确且规范</b>。三处补强中①③已落地，② 等有了 span 数据再决定要不要加复杂度。</p>
+    <div class="grid g3">
+      <div class="box" style="--tcol:var(--cyan)"><div class="bt">① 并行执行工具<span class="taglive" style="margin-left:auto">已落地 10-08</span></div>
+        <div class="bd">已实施：新增 <code>READ_ONLY_TOOLS</code> 白名单（recall_memory / get_schedule / web_lookup / open_artifact）；一轮内多工具且<b>全部只读</b>时 <code>Promise.all</code> 并发，写库/音乐/<code>ask_user</code> 保留串行。<b>tool 消息按 tool_calls 原顺序回填</b>，否则 id 错位会让模型串味。</div>
+        <div class="chips"><span class="chip">Promise.all</span><span class="chip">顺序回填</span><span class="chip">副作用串行</span></div></div>
+      <div class="box" style="--tcol:var(--cyan)"><div class="bt">② 最小 span 埋点<span class="taglive" style="margin-left:auto">已落地 10-08</span></div>
+        <div class="bd">没有它，"并行执行 / 记忆预注入到底省了几轮"就只是感觉。<code>agent_runs</code> 补四列（<code>iterations</code> / <code>tool_calls_count</code> / <code>parallel_rounds</code> / <code>latency_ms</code>，含旧库迁移）+ <code>getLoopStats()</code> + <code>/api/admin/loop-stats</code>。<b>实测：并发轮次已能观测到；省掉的轮次体现为 iterations 下降。</b></div>
+        <div class="chips"><span class="chip">4 个标量</span><span class="chip">成本≈0</span><span class="chip">旧记录不拉低均值</span></div></div>
+      <div class="box future" style="--tcol:var(--cyan)"><div class="bt">③ 轮内预算守卫</div>
+        <div class="bd">现状仅靠固定 6 轮 + 客户端 6s 看门狗。若一轮工具返回大量内容（如 <code>get_schedule</code> / <code>web_lookup</code>），易撑爆下一轮。需<b>每轮检查 token 累积</b>，超限即压缩或裁剪。<b>优先级最低</b>：先看 span 数据是否真的撑爆过。</div>
+        <div class="chips"><span class="chip">per-iter token check</span><span class="chip">接L1 预算器</span><span class="chip">P1</span></div></div>
+    </div>
+    <div class="evo" style="--accent:var(--cyan)">
+      <div class="lbl">已做对（保持）</div>
+      <div class="er">
+        <span class="next">迭代上限 6 轮 · 流式吐字 · <code>tool_calls</code>/<code>role:'tool'</code> 严格回写 · <code>if(!toolCalls.length) break</code> 收敛判据 · <code>ask_user</code> 人在环中断 · 180s 总超时</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 路线图 ===== -->
+  <section class="layer" style="--accent:var(--cyan)">
+    <div class="lhead"><div class="lbadge">🗓</div>
+      <div><div class="ltitle">落地顺序 · 每阶段独立可验证</div><div class="lpath">强制：npm test + npm run eval 全绿且对照 evals 无退化</div></div></div>
+    <div class="road">
+      <div class="ph" style="--accent:var(--violet)"><div class="pn">P0 · 安全网</div><div class="pt">Trace + Evals</div>
+        <div class="pd">先能"看见"再动刀</div>
+        <ul><li>✅ 主循环最小 span + loop-stats</li><li>agent_spans 落库 + 面板视图</li><li>evals 骨架 + 4 条用例</li><li>npm run eval</li></ul></div>
+      <div class="ph" style="--accent:var(--teal)"><div class="pn">P1 · 上下文 + 循环</div><div class="pt">Context Engine + L0+</div>
+        <div class="pd">让"聊得久、记得住"，顺带补强循环</div>
+        <ul><li>✅ 多工具并发执行</li><li>✅ 记忆检索化 selectMemories</li><li>budget.ts + assemble.ts</li><li>历史长度由预算算</li></ul></div>
+      <div class="ph" style="--accent:var(--teal)"><div class="pn">P2 · 长程</div><div class="pt">滚动摘要</div>
+        <div class="pd">长会话不丢早期</div>
+        <ul><li>compactOldTurns</li><li>近 K 轮原文 + 更早摘要</li><li>异步·幂等·不删 DB</li></ul></div>
+      <div class="ph" style="--accent:var(--amber)"><div class="pn">P3 · 扩展</div><div class="pt">Skills 包化</div>
+        <div class="pd">能力解耦</div>
+        <ul><li>Skill 类型定义</li><li>先抽 1~2 个域试点</li><li>不改主循环</li></ul></div>
+    </div>
+    <div class="no">
+      <span class="t">本期明确不做</span>
+      <div class="items"><span>鉴权 / 多用户隔离（上云前必补）</span><span>沙箱执行提权（自用单机）</span><span>多 Agent 全铺开（字段已预留）</span></div>
+    </div>
+  </section>
+
+  <footer>栖光 · 星澜 · 架构演进图 v3 · 依据 docs/ARCHITECTURE-v3.md 绘制 · 虚线为待建层</footer>
+</div>
+</body>
+</html>

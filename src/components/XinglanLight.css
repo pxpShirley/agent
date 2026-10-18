@@ -1,0 +1,124 @@
+/* =========================================================
+   栖光 · 光体
+   取代拟人化精灵：没有脸，没有表情。
+   形态只由"正在做什么"决定，颜色跟随主题令牌（青蓝 / 暖金）。
+   ========================================================= */
+
+.xc-core.has-light { background: transparent; box-shadow: none; }
+.xc-core.has-light::before,
+.xc-core.has-light::after { display: none; }
+.xc-core.has-light .xl-light { width: 100%; height: 100%; }
+
+.xl-light {
+  position: relative;
+  display: grid;
+  place-items: center;
+  --lx: 0px;
+  --ly: 0px;
+  transform: translate(var(--lx), var(--ly));
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.xl-light > span,
+.xl-light .xl-trail i { position: absolute; border-radius: 50%; }
+
+/* 容器未必是正方形，用 aspect-ratio 锁住正圆 */
+.xl-halo {
+  width: 88%; aspect-ratio: 1; height: auto;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--brand) 34%, transparent),
+    color-mix(in srgb, var(--brand) 10%, transparent) 45%,
+    transparent 70%);
+  filter: blur(14px);
+}
+.xl-core {
+  width: 40%; aspect-ratio: 1; height: auto;
+  background: radial-gradient(circle at 42% 38%,
+    #ffffff 0%, var(--brand) 40%,
+    color-mix(in srgb, var(--brand) 55%, transparent) 64%,
+    color-mix(in srgb, var(--brand) 12%, transparent) 100%);
+  filter: blur(1.5px);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--brand) 45%, transparent),
+              0 0 72px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+/* 朝向：不是眼睛，是注意力 */
+.xl-sheen {
+  width: 24%; aspect-ratio: 1; height: auto; left: 50%; top: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%);
+  opacity: 0.5; filter: blur(3px); pointer-events: none;
+}
+.xl-ring { border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); opacity: 0; }
+.xl-r1 { width: 46%; aspect-ratio: 1; height: auto; }
+.xl-r2 { width: 60%; aspect-ratio: 1; height: auto; }
+
+.xl-trail { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.xl-trail i {
+  width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  background: color-mix(in srgb, var(--brand) 85%, transparent);
+  opacity: 0; filter: blur(1px);
+}
+
+/* —— 静候：缓慢呼吸 —— */
+.xl-light[data-phase='calm'] .xl-halo { animation: xl-breathe 5.2s ease-in-out infinite; }
+.xl-light[data-phase='calm'] .xl-core { animation: xl-pulse 5.2s ease-in-out infinite; }
+
+/* —— 聆听：朝向更明确，呼吸放轻 —— */
+.xl-light[data-phase='listening'] .xl-halo { animation: xl-breathe 3.2s ease-in-out infinite; }
+.xl-light[data-phase='listening'] .xl-core { animation: xl-pulse 3.2s ease-in-out infinite; }
+.xl-light[data-phase='listening'] .xl-sheen { opacity: 0.75; }
+
+/* —— 思考：内收 + 震颤 + 环收缩 —— */
+.xl-light[data-phase='thinking'] .xl-core { width: 28%; animation: xl-tremor 0.42s ease-in-out infinite; }
+.xl-light[data-phase='thinking'] .xl-halo { width: 64%; opacity: 0.72; animation: xl-breathe 2.6s ease-in-out infinite; }
+.xl-light[data-phase='thinking'] .xl-r1,
+.xl-light[data-phase='thinking'] .xl-r2 { opacity: 1; animation: xl-contract 1.9s ease-in-out infinite; }
+.xl-light[data-phase='thinking'] .xl-r2 { animation-delay: 0.28s; }
+
+/* —— 诉说：朝对话方向淌出 —— */
+.xl-light[data-phase='speaking'] .xl-core { animation: xl-pulse 1.5s ease-in-out infinite; }
+.xl-light[data-phase='speaking'] .xl-halo { animation: xl-breathe 1.5s ease-in-out infinite; }
+.xl-light[data-phase='speaking'] .xl-trail i { animation: xl-spill 1.25s linear infinite; }
+.xl-light[data-phase='speaking'] .xl-trail i:nth-child(1) { animation-delay: 0s; }
+.xl-light[data-phase='speaking'] .xl-trail i:nth-child(2) { animation-delay: 0.22s; }
+.xl-light[data-phase='speaking'] .xl-trail i:nth-child(3) { animation-delay: 0.44s; }
+.xl-light[data-phase='speaking'] .xl-trail i:nth-child(4) { animation-delay: 0.66s; }
+
+/* —— 等你定：半边转暖金，且定住（等待不该是催促） —— */
+.xl-light[data-phase='waiting'] .xl-core {
+  background: linear-gradient(96deg,
+    color-mix(in srgb, var(--brand) 90%, transparent) 0%,
+    color-mix(in srgb, var(--brand) 55%, transparent) 38%,
+    color-mix(in srgb, var(--gold) 80%, transparent) 50%,
+    var(--gold) 62%, var(--gold) 100%);
+  filter: blur(5px);
+  animation: none;
+  box-shadow: 0 0 34px color-mix(in srgb, var(--gold) 35%, transparent),
+              0 0 68px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+.xl-light[data-phase='waiting'] .xl-halo {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--gold) 26%, transparent),
+    color-mix(in srgb, var(--brand) 8%, transparent) 48%,
+    transparent 70%);
+  animation: none;
+}
+.xl-light[data-phase='waiting'] .xl-sheen { opacity: 0.28; }
+
+@keyframes xl-breathe { 0%, 100% { transform: scale(1); opacity: 0.85 } 50% { transform: scale(1.09); opacity: 1 } }
+@keyframes xl-pulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.05) } }
+@keyframes xl-tremor {
+  0%, 100% { transform: translate(0, 0) }
+  25% { transform: translate(0.7px, -0.6px) }
+  75% { transform: translate(-0.6px, 0.6px) }
+}
+@keyframes xl-contract { 0%, 100% { transform: scale(1); opacity: 0.5 } 50% { transform: scale(0.72); opacity: 0.12 } }
+@keyframes xl-spill {
+  0% { transform: translate(16px, 0) scale(1); opacity: 0.9 }
+  60% { opacity: 0.5 }
+  100% { transform: translate(64px, 14px) scale(0.35); opacity: 0 }
+}
+
+html.lite .xl-light * { animation-duration: 0s !important; }
+@media (prefers-reduced-motion: reduce) {
+  .xl-light * { animation: none !important; }
+  .xl-light { transition: none; }
+}

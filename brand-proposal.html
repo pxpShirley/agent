@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>品牌提案板 · 二字候选</title>
+<style>
+  :root{
+    --bg:#05080f; --bg2:#080d18;
+    --brand:#6fe9ff; --brand2:#7af0d4; --gold:#ffcf7a;
+    --ink:#eaf2f8; --ink2:#a7b6c6; --ink3:#6f8098;
+    --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.16);
+    --glass:rgba(255,255,255,.05); --glass2:rgba(255,255,255,.08);
+    --solid:rgba(15,21,31,.72);
+    --grad:linear-gradient(135deg,#6fe9ff 0%,#7af0d4 100%);
+    --goldgrad:linear-gradient(135deg,#ffcf7a 0%,#f6a94e 100%);
+    --r:20px; --r2:13px; --ease:cubic-bezier(.22,1,.36,1);
+    --font:"Inter","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.6}
+  body{position:relative;overflow-x:hidden}
+  .aurora{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .aurora i{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;animation:drift 18s var(--ease) infinite alternate}
+  .aurora .a1{width:46vw;height:46vw;left:-10vw;top:-12vw;background:radial-gradient(circle,rgba(111,233,255,.4),transparent 70%)}
+  .aurora .a2{width:40vw;height:40vw;right:-8vw;top:-6vw;background:radial-gradient(circle,rgba(122,240,212,.34),transparent 70%);animation-delay:-6s}
+  .aurora .a3{width:50vw;height:50vw;left:30vw;bottom:-24vw;background:radial-gradient(circle,rgba(140,160,255,.26),transparent 70%);animation-delay:-11s}
+  @keyframes drift{to{transform:translate3d(4vw,3vw,0) scale(1.08)}}
+  .wrap{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:64px 28px 100px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--brand);border:1px solid var(--line2);padding:6px 14px;border-radius:999px;background:var(--glass)}
+  h1{font-size:46px;line-height:1.1;letter-spacing:-.02em;margin:22px 0 10px;font-weight:800}
+  h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{color:var(--ink2);max-width:700px;font-size:16px}
+  section{margin-top:72px}
+  .sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:26px}
+  .sec-h::before{content:"";width:4px;height:22px;border-radius:3px;background:var(--grad);display:inline-block;vertical-align:-3px}
+  .sec-h h2{font-size:24px;font-weight:800;letter-spacing:-.01em}
+  .sec-h .s{color:var(--ink3);font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{background:var(--solid);border:1px solid var(--line);border-radius:var(--r);padding:24px;backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);box-shadow:0 12px 30px -16px rgba(0,0,0,.6);position:relative;overflow:hidden}
+  .card .pick{position:absolute;top:16px;right:16px;font-size:11px;color:var(--ink3);letter-spacing:.1em}
+  .logo{width:84px;height:84px;margin:4px 0 18px;display:block}
+  .logo .pulse{transform-origin:center;animation:glow 3.4s var(--ease) infinite}
+  @keyframes glow{50%{opacity:.7}}
+  .cn{font-size:30px;font-weight:800;letter-spacing:.06em}
+  .en{font-size:13px;color:var(--brand);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+  .mean{margin-top:14px;font-size:13.5px;color:var(--ink2);line-height:1.62}
+  .tag{display:inline-block;margin-top:14px;font-size:12px;color:var(--gold);background:rgba(255,207,122,.10);border:1px solid rgba(255,207,122,.28);border-radius:999px;padding:5px 12px}
+  .pal{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+  .sw{height:96px;border-radius:var(--r2);border:1px solid var(--line);position:relative;overflow:hidden}
+  .sw span{position:absolute;left:10px;bottom:9px;font-size:11px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+  .sw b{position:absolute;left:10px;top:9px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+  .sw.ice{background:linear-gradient(135deg,#6fe9ff,#7af0d4)}
+  .sw.gold{background:linear-gradient(135deg,#ffcf7a,#f6a94e)}
+  .sw.ink{background:#05080f}
+  .sw.glass{background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.03))}
+  .sw.solid{background:rgba(15,21,31,.9)}
+  .sw.line{background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04))}
+  .type{display:flex;flex-direction:column;gap:6px;background:var(--solid);border:1px solid var(--line);border-radius:var(--r);padding:26px;backdrop-filter:blur(18px)}
+  .type div{display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--line);padding:10px 0}
+  .type div:last-child{border-bottom:none}
+  .type .lv{width:120px;color:var(--ink3);font-size:12px;flex-shrink:0}
+  .type .t{color:var(--ink)}
+  .pills{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .pill{background:var(--glass);border:1px solid var(--line);border-radius:var(--r2);padding:16px 18px}
+  .pill b{color:var(--brand);font-size:14px}
+  .pill p{color:var(--ink2);font-size:13px;margin-top:4px}
+  .comps{display:grid;grid-template-columns:1.3fr .7fr;gap:18px}
+  .bubble{background:var(--solid);border:1px solid var(--line2);border-radius:18px;padding:14px 16px;backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+  .bubble .who{font-size:11px;color:var(--brand);letter-spacing:.08em;margin-bottom:6px}
+  .bubble p{font-size:14px;color:var(--ink)}
+  .ccard{background:var(--glass2);border:1px solid var(--line);border-radius:var(--r2);padding:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:.25s var(--ease)}
+  .ccard:hover{transform:translateY(-3px);border-color:rgba(111,233,255,.4);box-shadow:0 20px 40px -22px rgba(111,233,255,.5)}
+  .ccard .ci{width:40px;height:40px;border-radius:12px;background:rgba(111,233,255,.12);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px}
+  .ccard .ct{font-size:14.5px;font-weight:700}
+  .ccard .cd{font-size:12.5px;color:var(--ink2);margin-top:4px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;border:none;background:var(--grad);color:#04141a;font-weight:700;font-size:14px;box-shadow:0 10px 22px -10px rgba(111,233,255,.6);cursor:pointer;margin-top:14px}
+  .goldbar{margin-top:16px;background:var(--goldgrad);color:#1c1304;font-weight:700;font-size:13px;border-radius:12px;padding:11px 16px;display:flex;align-items:center;gap:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .panel{background:var(--solid);border:1px solid var(--line);border-radius:var(--r);padding:22px;backdrop-filter:blur(18px)}
+  .panel h3{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .dot.g{background:var(--gold)} .dot.b{background:var(--brand)}
+  ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+  li{font-size:13px;color:var(--ink2);padding-left:18px;position:relative}
+  li::before{content:"›";position:absolute;left:0;color:var(--brand)}
+  li.gap::before{content:"!";color:var(--gold)}
+  .rec{margin-top:18px;background:linear-gradient(135deg,rgba(111,233,255,.10),rgba(122,240,212,.05));border:1px solid rgba(111,233,255,.28);border-radius:var(--r2);padding:18px}
+  .rec b{color:var(--brand)}
+  .rec p{color:var(--ink2);font-size:13px;margin-top:6px}
+  .foot{margin-top:80px;text-align:center;color:var(--ink3);font-size:13px}
+  @media(max-width:860px){.cards,.pal,.comps,.grid2,.pills{grid-template-columns:1fr}.pal{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="aurora"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
+<div class="wrap">
+
+  <span class="eyebrow">◆ Brand Proposal · 二字候选</span>
+  <h1>为 Agent 选定一个<br><span class="g">有辨识度与记忆点</span>的二字名</h1>
+  <p class="lead">方向已定：保留并升级现有「深空玻璃 + 冰青(系统)/暖金(人的环)」双色设计语言。以下三个二字候选名均可承载该视觉体系，请挑选其一，我将据此落地 Logo、配色令牌与全站品牌资产。</p>
+
+  <section>
+    <div class="sec-h"><h2>三个二字候选系统名</h2><span class="s">各配一枚深空玻璃风 Logo</span></div>
+    <div class="cards">
+
+      <!-- 伴星 Stella -->
+      <div class="card">
+        <span class="pick">CANDIDATE 01</span>
+        <svg class="logo" viewBox="0 0 64 64">
+          <defs>
+            <linearGradient id="c1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6fe9ff"/><stop offset="1" stop-color="#7af0d4"/></linearGradient>
+            <filter id="g1"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <g class="pulse" filter="url(#g1)">
+            <circle cx="24" cy="26" r="9" fill="url(#c1)"/>
+            <circle cx="24" cy="26" r="15" fill="none" stroke="url(#c1)" stroke-width="1.2" opacity=".35"/>
+            <path d="M24 26 L46 40" stroke="url(#c1)" stroke-width="1.6" opacity=".5"/>
+            <circle cx="46" cy="40" r="4.5" fill="#ffcf7a"/>
+          </g>
+        </svg>
+        <div class="cn">伴星</div>
+        <div class="en">Stella</div>
+        <div class="mean">伴星＝陪伴你的星（天文术语：双星系统中绕行的那颗）。字面即「始终在侧的伙伴」，呼应深空语境，既有科技感又有温度。</div>
+        <span class="tag">宇宙陪伴 · 温暖恒定 · 如影随形</span>
+      </div>
+
+      <!-- 知微 Insight -->
+      <div class="card">
+        <span class="pick">CANDIDATE 02</span>
+        <svg class="logo" viewBox="0 0 64 64">
+          <defs>
+            <linearGradient id="c2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6fe9ff"/><stop offset="1" stop-color="#7af0d4"/></linearGradient>
+            <filter id="g2"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <g class="pulse" filter="url(#g2)" stroke="url(#c2)" stroke-linecap="round">
+            <circle cx="32" cy="32" r="18" fill="none" stroke-width="1.4" opacity=".4"/>
+            <circle cx="32" cy="32" r="11" fill="none" stroke-width="2" opacity=".7"/>
+            <circle cx="32" cy="32" r="4" fill="url(#c2)" stroke="none"/>
+            <line x1="32" y1="6" x2="32" y2="12"/><line x1="32" y1="52" x2="32" y2="58"/>
+            <line x1="6" y1="32" x2="12" y2="32"/><line x1="52" y1="32" x2="58" y2="32"/>
+          </g>
+        </svg>
+        <div class="cn">知微</div>
+        <div class="en">Insight</div>
+        <div class="mean">出自「见微知著」——从细微处读懂你。寓意 AI 具洞察力、能主动理解言外之意，聪明且有东方韵味。</div>
+        <span class="tag">洞察智慧 · 主动理解 · 东方韵味</span>
+      </div>
+
+      <!-- 栖光 Glow -->
+      <div class="card">
+        <span class="pick">CANDIDATE 03</span>
+        <svg class="logo" viewBox="0 0 64 64">
+          <defs>
+            <linearGradient id="c3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6fe9ff"/><stop offset="1" stop-color="#7af0d4"/></linearGradient>
+            <filter id="g3"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <g class="pulse" filter="url(#g3)">
+            <path d="M14 40 Q32 56 50 40" fill="none" stroke="url(#c3)" stroke-width="2.6" stroke-linecap="round" opacity=".75"/>
+            <circle cx="32" cy="30" r="9" fill="url(#c3)"/>
+            <circle cx="32" cy="30" r="15" fill="none" stroke="url(#c3)" stroke-width="1.2" opacity=".35"/>
+          </g>
+        </svg>
+        <div class="cn">栖光</div>
+        <div class="en">Glow</div>
+        <div class="mean">栖光＝光栖止的角落。寓意一个让安心与理解停留的温柔空间，治愈、松弛，像夜里为你留着的一盏灯。</div>
+        <span class="tag">治愈安心 · 温柔在侧 · 光的角落</span>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>升级版设计语言</h2><span class="s">在既有深空玻璃体系上补强</span></div>
+    <div class="pal" style="margin-bottom:18px">
+      <div class="sw ice"><b>冰青</b><span>#6FE9FF</span></div>
+      <div class="sw gold"><b>暖金</b><span>#FFCF7A</span></div>
+      <div class="sw ink"><b>深空</b><span>#05080F</span></div>
+      <div class="sw solid"><b>玻璃面</b><span>rgba(15,21,31,.72)</span></div>
+      <div class="sw glass"><b>磨砂片</b><span>rgba(255,255,255,.06)</span></div>
+      <div class="sw line"><b>描边</b><span>rgba(255,255,255,.10)</span></div>
+    </div>
+    <div class="grid2">
+      <div class="type">
+        <div><span class="lv">Display / 标题</span><span class="t" style="font-size:30px;font-weight:800">你的生活伙伴</span></div>
+        <div><span class="lv">H2 / 区块</span><span class="t" style="font-size:20px;font-weight:700">今日主动提议</span></div>
+        <div><span class="lv">Body / 正文</span><span class="t" style="font-size:14px">帮你把最近要做的事理一理，做个可执行的一周计划。</span></div>
+        <div><span class="lv">Caption / 辅助</span><span class="t" style="font-size:12px;color:var(--ink3)">点一下，直接开口</span></div>
+      </div>
+      <div class="pills">
+        <div class="pill"><b>双色纪律</b><p>冰青＝系统语言；暖金仅用于「人的环 / 需要你」，绝不污染。</p></div>
+        <div class="pill"><b>层级深度</b><p>背景极光 → 玻璃面板 → 磨砂片 → 文字，四级清晰可辨。</p></div>
+        <div class="pill"><b>动效节奏</b><p>统一缓动 cubic-bezier(.22,1,.36,1)，时长 0.2–0.34s，微交互可感不喧哗。</p></div>
+        <div class="pill"><b>零浮层</b><p>所有反馈内联或同页区域切换，不弹窗打断阅读焦点。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>关键组件预演</h2><span class="s">升级质感下的真实形态</span></div>
+    <div class="comps">
+      <div>
+        <div class="bubble" style="margin-bottom:14px"><div class="who">AI · 思考中</div><p>好的，我来帮你规划。先拆任务、查天气与景点，再让复核智能体把关节奏～</p></div>
+        <div class="bubble"><div class="who">AI · 已交付产物</div><p>📋 周末周边游草案已生成：Day1 古镇慢游、Day2 自然徒步，附穿衣与注意事项。</p></div>
+      </div>
+      <div>
+        <div class="ccard" style="margin-bottom:14px"><div class="ci">✈</div><div class="ct">规划一次出行</div><div class="cd">周边游 / 路线 / 穿衣天气</div></div>
+        <button class="btn">✦ 直接开口</button>
+        <div class="goldbar">● 需要你确认 · 点击处理</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>功能盘点与补全建议</h2><span class="s">梳理现有能力，识别缺口</span></div>
+    <div class="grid2">
+      <div class="panel">
+        <h3><span class="dot b"></span>已具备的能力</h3>
+        <ul>
+          <li>多轮流式对话 + Markdown 渲染</li>
+          <li>多智能体步骤流（planner/researcher/executor/critic 实时呈现）</li>
+          <li>人在环确认（高风险动作前确认卡，4 段决策）</li>
+          <li>结构化产物（行程/报告/清单/笔记，可编辑/导出 MD）</li>
+          <li>记忆 / 提醒 / 心情（跨会话聚合，仪表盘可视化）</li>
+          <li>主动服务卡（晨报/到期/周复盘/提醒）</li>
+          <li>治理层（密钥/模型/运行设置）</li>
+          <li>语音输入（SpeechRecognition + 波形）</li>
+          <li>情绪调色板 + 星核伴生体形象</li>
+          <li>能力网格 + 历史会话 + 主题（暗/亮/暖/精简）</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3><span class="dot g"></span>缺口 / 半成品</h3>
+        <ul>
+          <li class="gap">多模态输入缺失（仅语音，无图片/截图理解）</li>
+          <li class="gap">语音单向（有输入无播报 TTS）</li>
+          <li class="gap">产物仅导出 MD，无分享 / 可视排版</li>
+          <li class="gap">主动洞察较薄（仅卡片，无「今日」聚合视图）</li>
+          <li class="gap">无新手引导 / 个性化昵称</li>
+          <li class="gap">能力网格为静态预设，未与真实工具/技能打通</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rec">
+      <b>建议落地的 1–2 项高价值能力（请确认）</b>
+      <p>① <b>多模态图片理解</b>——上传/截图即可问（看菜单、看风景、看物品），是「AI 时代」最具辨识度的能力，生活助手高频场景。<br>② <b>语音播报 TTS</b>——补全语音闭环，通勤 / 眼睛休息时朗读回复。<br><span style="color:var(--ink3)">（备选：主动洞察引擎——把记忆/提醒/日程聚合成一张「今日」晨间卡。）</span></p>
+    </div>
+  </section>
+
+  <div class="foot">选定名称后，我将把 Logo / 配色令牌 / 品牌名接入全站，并落地设计语言升级与所选能力。</div>
+</div>
+</body>
+</html>

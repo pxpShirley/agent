@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>星澜 XINGLAN · 关系界面 UI 设计原型</title>
+<style>
+  /* ===================== 设计令牌（对齐 persona v1.2 令牌总表，单一来源） ===================== */
+  :root{
+    --bg-0:#05060d; --bg-1:#070912;
+    --ink:#f2f5fb; --ink-dim:rgba(255,255,255,.62); --ink-faint:rgba(255,255,255,.40); --ink-ghost:rgba(255,255,255,.24);
+    --glass:rgba(255,255,255,.035); --glass-2:rgba(255,255,255,.06); --brd:rgba(255,255,255,.08); --brd-2:rgba(255,255,255,.14);
+    --core:#6fd6ff; --core-deep:#2b7fb0; --core-soft:rgba(111,214,255,.22); --core-glow:rgba(111,214,255,.40);
+    --gold:#f6c062; --gold-deep:#b9893a; --gold-soft:rgba(246,192,98,.20);
+    --radius-s:10px; --radius-m:14px; --radius-l:20px; --radius-xl:26px;
+    --space-1:4px; --space-2:8px; --space-3:14px; --space-4:22px; --space-5:38px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --shadow-soft:0 24px 60px -30px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.05);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg-0);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.6;}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(111,214,255,.06), transparent 55%),
+      radial-gradient(100% 70% at 50% 120%, rgba(111,214,255,.04), transparent 50%),
+      var(--bg-0);
+    padding:48px 28px 96px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  /* 文档头 */
+  .doc-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;
+    padding-bottom:24px;border-bottom:1px solid var(--brd);margin-bottom:40px;}
+  .doc-head h1{font-size:30px;font-weight:600;letter-spacing:-.5px;line-height:1.2;}
+  .doc-head h1 .en{display:block;font-size:13px;font-weight:400;letter-spacing:3px;color:var(--core);text-transform:uppercase;margin-top:8px;}
+  .doc-meta{font-size:12px;color:var(--ink-faint);text-align:right;line-height:1.9;}
+  .doc-meta b{color:var(--ink-dim);font-weight:500;}
+
+  section{margin:0 0 64px;}
+  .sec-tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:2px;
+    color:var(--core);text-transform:uppercase;margin-bottom:14px;}
+  .sec-tag::before{content:"";width:22px;height:1px;background:var(--core);opacity:.6;}
+  .sec-tag.gold{color:var(--gold);} .sec-tag.gold::before{background:var(--gold);}
+  h2{font-size:22px;font-weight:600;letter-spacing:-.3px;margin-bottom:8px;}
+  .sec-desc{color:var(--ink-dim);font-size:14px;max-width:780px;margin-bottom:28px;}
+
+  /* 设计原则卡片 */
+  .principles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .principle{padding:20px;border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);backdrop-filter:blur(8px);}
+  .principle .num{font-family:var(--mono);font-size:12px;color:var(--core);opacity:.8;}
+  .principle h3{font-size:15px;font-weight:600;margin:10px 0 8px;}
+  .principle p{font-size:12.5px;color:var(--ink-dim);line-height:1.7;}
+
+  /* IA 图 */
+  .ia-stage{border:1px solid var(--brd);border-radius:var(--radius-xl);background:var(--glass);padding:32px;overflow-x:auto;}
+  .ia-svg{width:100%;min-width:820px;height:auto;display:block;}
+  .ia-node{fill:rgba(255,255,255,.04);stroke:var(--brd-2);stroke-width:1;}
+  .ia-node-core{fill:rgba(111,214,255,.10);stroke:var(--core);stroke-width:1.5;}
+  .ia-node-gold{fill:rgba(246,192,98,.10);stroke:var(--gold);stroke-width:1.5;}
+  .ia-text{fill:var(--ink);font-family:var(--font);font-size:13px;font-weight:500;}
+  .ia-text-dim{fill:var(--ink-faint);font-family:var(--font);font-size:11.5px;}
+  .ia-line{stroke:var(--brd-2);stroke-width:1;fill:none;}
+  .ia-line-core{stroke:var(--core-soft);stroke-width:1.4;fill:none;}
+
+  .func-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:28px;}
+  .func{display:flex;gap:14px;padding:18px;border:1px solid var(--brd);border-radius:var(--radius-m);background:var(--glass);}
+  .func .ic{flex:0 0 38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--core-soft);color:var(--core);font-size:16px;}
+  .func h4{font-size:14px;font-weight:600;margin-bottom:3px;}
+  .func p{font-size:12px;color:var(--ink-dim);line-height:1.6;}
+
+  /* 布局决策 */
+  .decision{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:stretch;}
+  .decision .pick{border:1px solid var(--core-soft);border-radius:var(--radius-l);background:rgba(111,214,255,.05);padding:22px;}
+  .decision .alt{border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);padding:22px;}
+  .decision h4{font-size:15px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .decision .tag{font-size:11px;padding:3px 9px;border-radius:20px;}
+  .decision .tag.base{background:var(--core-soft);color:var(--core);}
+  .decision .tag.opt{background:rgba(255,255,255,.06);color:var(--ink-dim);}
+  .decision ul{margin:6px 0 0;padding-left:16px;font-size:12.5px;color:var(--ink-dim);line-height:1.75;}
+  .decision li{margin:4px 0;}
+
+  /* ============ 可演示核心功能页面（纯 HTML/CSS 单选切换，无 JS） ============ */
+  .pg{position:relative;}
+  .pg > input{position:absolute;width:0;height:0;opacity:0;}
+  .pg-dock{display:flex;gap:6px;padding:8px;border:1px solid var(--brd);border-radius:20px;background:var(--glass);
+    width:max-content;margin:0 auto 22px;backdrop-filter:blur(10px);position:relative;z-index:6;}
+  .pg-dock label{font-size:13px;padding:9px 20px;border-radius:14px;color:var(--ink-dim);cursor:pointer;user-select:none;transition:.25s var(--ease);}
+  .pg-dock label:hover{color:var(--ink);}
+  .pg-dock label.gold{color:var(--gold);}
+  #pg-home:checked ~ .pg-dock label[for="pg-home"],
+  #pg-memory:checked ~ .pg-dock label[for="pg-memory"],
+  #pg-goals:checked ~ .pg-dock label[for="pg-goals"],
+  #pg-ring:checked ~ .pg-dock label[for="pg-ring"]{background:var(--core-soft);color:var(--ink);}
+  #pg-ring:checked ~ .pg-dock label[for="pg-ring"]{background:var(--gold-soft);color:#ffe2ad;}
+  .pg .pn{display:none;animation:pgIn .42s var(--ease) both;}
+  @keyframes pgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  #pg-home:checked ~ .pn-home{display:block;}
+  #pg-memory:checked ~ .pn-memory{display:block;}
+  #pg-goals:checked ~ .pn-goals{display:block;}
+  #pg-ring:checked ~ .pn-ring{display:block;}
+
+  .frame{border:1px solid var(--brd);border-radius:var(--radius-xl);overflow:hidden;
+    background:linear-gradient(180deg,#06070f,#04050b);position:relative;}
+  .frame-label{position:absolute;top:12px;left:14px;font-size:10.5px;letter-spacing:1.5px;color:var(--ink-ghost);text-transform:uppercase;z-index:5;}
+
+  /* 星核 CSS 渲染 */
+  .xc{position:relative;display:grid;place-items:center;}
+  .xc .orb{width:54px;height:54px;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%, #cdeeff, var(--core) 55%, var(--core-deep) 100%);
+    box-shadow:0 0 22px 4px var(--core-glow), inset 0 0 14px rgba(255,255,255,.5);
+    animation:breathe 4.2s var(--ease) infinite;position:relative;z-index:2;}
+  .xc .ring{position:absolute;border-radius:50%;border:1px solid var(--core-soft);}
+  .xc .ring.r1{width:78px;height:78px;animation:spin 18s linear infinite;}
+  .xc .ring.r2{width:104px;height:104px;border-color:rgba(111,214,255,.10);}
+  .xc.sm .orb{width:40px;height:40px;} .xc.sm .ring.r1{width:58px;height:58px;} .xc.sm .ring.r2{width:78px;height:78px;}
+  @keyframes breathe{0%,100%{transform:scale(1);opacity:.92}50%{transform:scale(1.07);opacity:1}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* 首页（版本 B 基准） */
+  .home{display:flex;flex-direction:column;min-height:560px;}
+  .home .hero{height:208px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+    border-bottom:1px solid var(--brd);position:relative;background:radial-gradient(60% 90% at 50% 30%, rgba(111,214,255,.10), transparent 70%);}
+  .home .hero .hi{font-size:15px;font-weight:600;}
+  .home .hero .sub{font-size:11px;color:var(--ink-faint);}
+  .home .body{display:grid;grid-template-columns:1fr 176px;flex:1;min-height:0;}
+  .home .bconv{display:flex;flex-direction:column;padding:16px;gap:10px;justify-content:flex-end;overflow:auto;}
+  .bub{font-size:11.5px;padding:9px 12px;border-radius:13px;max-width:88%;line-height:1.55;}
+  .bub.u{align-self:flex-end;background:var(--core-soft);color:var(--ink);border-bottom-right-radius:4px;}
+  .bub.a{align-self:flex-start;background:rgba(255,255,255,.05);border:1px solid var(--brd);color:var(--ink-dim);border-bottom-left-radius:4px;}
+  .bub.a .md-h{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px;}
+  .bub.a ul{margin:4px 0 0;padding-left:16px;} .bub.a li{margin:2px 0;}
+  .composer{margin:0 16px 16px;padding:10px 12px;border:1px solid var(--brd);border-radius:13px;background:rgba(255,255,255,.03);
+    font-size:11px;color:var(--ink-faint);display:flex;justify-content:space-between;align-items:center;}
+  .bperc{border-left:1px solid var(--brd);padding:14px;display:flex;flex-direction:column;gap:10px;background:rgba(255,255,255,.012);overflow:auto;}
+  .pcard{font-size:10.5px;padding:9px 10px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--brd);color:var(--ink-dim);}
+  .pcard.gold{border-color:var(--gold-soft);background:rgba(246,192,98,.07);color:#ffe2ad;}
+  .pcard .l{font-size:9px;letter-spacing:1px;color:var(--ink-faint);text-transform:uppercase;margin-bottom:4px;display:flex;justify-content:space-between;}
+  .pcard .prog{height:4px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden;}
+  .pcard .prog i{display:block;height:100%;background:var(--core);border-radius:3px;}
+
+  /* 记忆态 · 星座 */
+  .mem{min-height:560px;display:flex;flex-direction:column;}
+  .mem .bar{display:flex;gap:10px;padding:16px;border-bottom:1px solid var(--brd);align-items:center;}
+  .mem .bar .search{flex:1;font-size:11px;padding:9px 12px;border:1px solid var(--brd);border-radius:11px;background:rgba(255,255,255,.03);color:var(--ink-faint);}
+  .mem .bar .pill{font-size:10.5px;padding:6px 11px;border-radius:20px;background:var(--core-soft);color:var(--core);white-space:nowrap;}
+  .mem .stage{flex:1;position:relative;padding:24px;min-height:430px;overflow:hidden;}
+  .mem .stage svg{position:absolute;inset:0;width:100%;height:100%;}
+  .mem .node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
+  .mem .node .dot{width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#cdeeff,var(--core) 60%,var(--core-deep));
+    box-shadow:0 0 16px 2px var(--core-glow);display:grid;place-items:center;font-size:16px;color:#04121c;}
+  .mem .node.g .dot{background:radial-gradient(circle at 40% 35%,#ffe7b0,var(--gold) 60%,var(--gold-deep));box-shadow:0 0 16px 2px var(--gold-soft);}
+  .mem .node .cap{font-size:10px;color:var(--ink-dim);text-align:center;max-width:80px;}
+  .mem .node:hover .cap{color:var(--ink);}
+
+  /* 目标态 · 河流 */
+  .goals{min-height:560px;display:flex;flex-direction:column;}
+  .goals .bar{display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--brd);}
+  .goals .bar .t{font-size:13px;font-weight:600;}
+  .goals .bar .pill{font-size:10.5px;padding:6px 11px;border-radius:20px;background:rgba(255,255,255,.06);color:var(--ink-dim);}
+  .goals .river{flex:1;padding:26px 20px;position:relative;overflow:auto;}
+  .goals .flow{position:relative;display:flex;flex-direction:column;gap:0;padding-left:30px;}
+  .goals .flow::before{content:"";position:absolute;left:14px;top:8px;bottom:8px;width:2px;
+    background:linear-gradient(180deg,var(--core),rgba(111,214,255,.15));}
+  .ms{position:relative;padding:14px 16px;margin:10px 0;border:1px solid var(--brd);border-radius:var(--radius-m);background:var(--glass);}
+  .ms::before{content:"";position:absolute;left:-23px;top:20px;width:12px;height:12px;border-radius:50%;background:var(--core);box-shadow:0 0 10px 1px var(--core-glow);}
+  .ms.done::before{background:rgba(255,255,255,.3);box-shadow:none;}
+  .ms.gold{border-color:var(--gold-soft);background:rgba(246,192,98,.07);}
+  .ms.gold::before{background:var(--gold);box-shadow:0 0 10px 1px var(--gold-soft);}
+  .ms .h{font-size:12.5px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;}
+  .ms .h .st{font-size:9.5px;padding:3px 8px;border-radius:14px;background:var(--core-soft);color:var(--core);}
+  .ms.gold .h .st{background:var(--gold-soft);color:#ffe2ad;}
+  .ms .d{font-size:11px;color:var(--ink-dim);line-height:1.6;}
+  .ms .prog{height:4px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:8px;overflow:hidden;}
+  .ms .prog i{display:block;height:100%;background:var(--core);}
+
+  /* 人的环 · 确认模态 */
+  .ring{display:grid;place-items:center;min-height:560px;padding:24px;position:relative;
+    background:radial-gradient(60% 60% at 50% 40%, rgba(246,192,98,.06), transparent 70%);}
+  .ring .backdrop{position:absolute;inset:0;background:rgba(4,5,11,.72);backdrop-filter:blur(3px);}
+  .ring .modal{position:relative;z-index:2;width:min(420px,92%);border:1px solid var(--gold-soft);border-radius:var(--radius-xl);
+    background:linear-gradient(180deg,rgba(246,192,98,.10),rgba(255,255,255,.03));padding:28px;text-align:center;box-shadow:0 30px 80px -30px rgba(0,0,0,.9);}
+  .ring .modal .xc{margin-bottom:16px;}
+  .ring .modal h3{font-size:17px;font-weight:600;margin-bottom:8px;}
+  .ring .modal p{font-size:12.5px;color:var(--ink-dim);line-height:1.7;margin-bottom:6px;}
+  .ring .modal .q{font-size:13px;color:var(--ink);background:rgba(255,255,255,.04);border:1px solid var(--brd);border-radius:var(--radius-m);padding:12px;margin:14px 0;}
+  .ring .modal .opts{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
+  .ring .modal .opts button{font-family:var(--font);font-size:13px;padding:12px;border-radius:13px;cursor:pointer;border:1px solid var(--brd);background:rgba(255,255,255,.04);color:var(--ink);transition:.2s var(--ease);}
+  .ring .modal .opts button:hover{background:rgba(255,255,255,.08);}
+  .ring .modal .opts .confirm{border-color:var(--gold-soft);background:rgba(246,192,98,.14);color:#ffe2ad;}
+  .ring .modal .opts .later{color:var(--ink-dim);}
+  .ring .modal .hint{font-size:10.5px;color:var(--ink-faint);margin-top:14px;}
+
+  /* 模块规格 */
+  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .mod{padding:18px;border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);}
+  .mod .mid{font-family:var(--mono);font-size:11px;color:var(--core);opacity:.85;margin-bottom:8px;}
+  .mod h4{font-size:14.5px;font-weight:600;margin-bottom:8px;}
+  .mod p{font-size:12px;color:var(--ink-dim);line-height:1.7;}
+  .mod ul{margin:8px 0 0;padding-left:16px;font-size:11.5px;color:var(--ink-dim);}
+  .mod li{margin:3px 0;}
+  .mod .states{margin-top:8px;font-size:10.5px;color:var(--ink-faint);font-family:var(--mono);line-height:1.7;}
+
+  /* 交互流程 + 状态机 */
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:8px 0 4px;}
+  .step{flex:0 0 168px;padding:0 14px;position:relative;}
+  .step .dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;
+    background:var(--core-soft);color:var(--core);border:1px solid var(--core-soft);margin-bottom:12px;}
+  .step.gold .dot{background:var(--gold-soft);color:var(--gold);border-color:var(--gold-soft);}
+  .step h4{font-size:13px;font-weight:600;margin-bottom:5px;}
+  .step p{font-size:11.5px;color:var(--ink-dim);line-height:1.6;}
+  .step:not(:last-child)::after{content:"";position:absolute;top:17px;right:-2px;width:18px;height:1px;background:var(--brd-2);}
+  .sm-stage{border:1px solid var(--brd);border-radius:var(--radius-xl);background:var(--glass);padding:28px;margin-top:24px;overflow-x:auto;}
+  .sm-svg{width:100%;min-width:780px;height:auto;display:block;}
+
+  /* 状态反馈 / 边界情况 */
+  .states-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+  .state{border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);overflow:hidden;display:flex;flex-direction:column;}
+  .state .sh{padding:13px 16px;border-bottom:1px solid var(--brd);font-size:13px;font-weight:600;display:flex;align-items:center;gap:9px;}
+  .state .sh .led{width:9px;height:9px;border-radius:50%;}
+  .state .sh .k{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-left:auto;}
+  .state .prev{height:120px;position:relative;background:linear-gradient(180deg,#06070f,#04050b);display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;padding:12px;}
+  .state .prev.center{text-align:center;flex-direction:column;gap:10px;}
+  .state .desc{padding:13px 16px;font-size:11.5px;color:var(--ink-dim);line-height:1.7;}
+  .state .desc b{color:var(--ink);font-weight:600;}
+  .state .recover{padding:0 16px 14px;font-size:11px;color:var(--core);display:flex;align-items:center;gap:7px;}
+  /* mini mockups */
+  .typing{display:flex;gap:5px;}
+  .typing i{width:7px;height:7px;border-radius:50%;background:var(--core);opacity:.5;animation:tk 1.2s infinite;}
+  .typing i:nth-child(2){animation-delay:.2s;} .typing i:nth-child(3){animation-delay:.4s;}
+  @keyframes tk{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+  .agent-steps{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+  .agent-steps .s{font-size:9.5px;padding:4px 9px;border-radius:10px;background:rgba(111,214,255,.12);color:var(--core);border:1px solid var(--core-soft);}
+  .agent-steps .s.active{animation:pls 1.4s infinite;}
+  @keyframes pls{0%,100%{box-shadow:0 0 0 0 var(--core-soft)}50%{box-shadow:0 0 0 4px transparent}}
+  .toast{font-size:11px;padding:8px 13px;border-radius:12px;background:var(--core-soft);color:var(--ink);display:flex;align-items:center;gap:8px;animation:pls2 2.2s infinite;}
+  @keyframes pls2{0%,100%{box-shadow:0 0 0 0 var(--core-soft)}50%{box-shadow:0 0 0 5px transparent}}
+  .err-box{font-size:11px;padding:10px 13px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--brd);color:var(--ink-dim);display:flex;flex-direction:column;gap:8px;align-items:center;}
+  .err-box .retry{font-size:10.5px;padding:5px 12px;border-radius:10px;background:var(--core-soft);color:var(--core);border:none;cursor:pointer;}
+  .empty{font-size:11px;color:var(--ink-faint);text-align:center;line-height:1.7;}
+  .empty .big{font-size:26px;opacity:.5;display:block;margin-bottom:8px;}
+  .offline-banner{font-size:10.5px;padding:7px 12px;border-radius:11px;background:rgba(246,192,98,.12);color:#ffe2ad;border:1px solid var(--gold-soft);width:auto;}
+
+  /* 视觉规范 */
+  .spec{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  .spec-block{border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);padding:22px;}
+  .spec-block h3{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+  .spec-block h3 .b{width:8px;height:8px;border-radius:50%;background:var(--core);}
+  .swatches{display:flex;flex-wrap:wrap;gap:10px;}
+  .sw{width:78px;}
+  .sw .c{height:46px;border-radius:10px;border:1px solid var(--brd);}
+  .sw .n{font-size:10.5px;color:var(--ink-dim);margin-top:6px;}
+  .sw .h{font-family:var(--mono);font-size:9px;color:var(--ink-faint);}
+  .type-row{display:flex;align-items:baseline;gap:14px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  .type-row .t{font-size:11px;color:var(--ink-faint);width:64px;font-family:var(--mono);}
+  .type-row .s{color:var(--ink);}
+  .scale-bar{height:10px;border-radius:6px;background:linear-gradient(90deg,var(--core),var(--gold));margin:4px 0 14px;}
+  .dodont{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;}
+  .dd{padding:14px;border-radius:var(--radius-m);font-size:12px;line-height:1.7;}
+  .dd.do{background:rgba(111,214,255,.06);border:1px solid var(--core-soft);}
+  .dd.dont{background:rgba(246,192,98,.05);border:1px solid var(--gold-soft);}
+  .dd b{display:block;margin-bottom:6px;font-size:12.5px;}
+  .dd.do b{color:var(--core);} .dd.dont b{color:var(--gold);}
+
+  /* 响应式 */
+  .resp{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .resp .bp{border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);padding:18px;}
+  .resp .bp .w{font-family:var(--mono);font-size:11px;color:var(--core);margin-bottom:8px;}
+  .resp .bp h4{font-size:13.5px;font-weight:600;margin-bottom:8px;}
+  .resp .bp ul{margin:0;padding-left:16px;font-size:11.5px;color:var(--ink-dim);line-height:1.7;}
+  .resp .bp li{margin:3px 0;}
+  .mobile-bar{display:none;}
+
+  /* DoD */
+  .dod{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+  .dod .col{border:1px solid var(--brd);border-radius:var(--radius-l);background:var(--glass);padding:18px;}
+  .dod .col h4{font-size:13.5px;font-weight:600;margin-bottom:12px;color:var(--core);}
+  .dod .col.gold h4{color:var(--gold);}
+  .dod label{display:flex;gap:10px;align-items:flex-start;font-size:12px;color:var(--ink-dim);line-height:1.6;padding:6px 0;cursor:default;}
+  .dod .cb{flex:0 0 16px;width:16px;height:16px;border-radius:5px;border:1px solid var(--brd-2);margin-top:2px;display:grid;place-items:center;font-size:11px;color:var(--core);}
+  .dod .col.gold .cb{color:var(--gold);}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-dim);margin-top:16px;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  footer{margin-top:40px;padding-top:22px;border-top:1px solid var(--brd);font-size:11.5px;color:var(--ink-faint);line-height:1.9;}
+  footer b{color:var(--ink-dim);font-weight:500;}
+
+  @media(max-width:920px){
+    .principles,.func-grid,.states-grid,.spec,.dod,.resp{grid-template-columns:1fr;}
+    .decision{grid-template-columns:1fr;}
+    .mods{grid-template-columns:repeat(2,1fr);}
+    .home .body{grid-template-columns:1fr;}
+    .home .bperc{flex-direction:row;flex-wrap:wrap;border-left:none;border-top:1px solid var(--brd);}
+    .pg-dock{flex-wrap:wrap;justify-content:center;width:100%;}
+  }
+  @media(max-width:560px){
+    .mods{grid-template-columns:1fr;}
+    .frame-label{font-size:9px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important;transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 文档头 -->
+  <header class="doc-head">
+    <div>
+      <h1>星澜 XINGLAN · 关系界面 UI 设计原型<span class="en">Relationship Interface · Design Prototype</span></h1>
+    </div>
+    <div class="doc-meta">
+      版本 <b>v1.0 · 凝光 NINGGUANG</b><br/>
+      范围 <b>首页 / 记忆 / 目标 三态 + 人的环 · 可演示</b><br/>
+      日期 <b>2026-08-17</b> · 状态 <b>原型评审（可演示）</b>
+    </div>
+  </header>
+
+  <!-- 设计原则 -->
+  <section>
+    <div class="sec-tag">Design Principles</div>
+    <h2>设计原则</h2>
+    <p class="sec-desc">以「关系」而非「工具」为第一性。星澜不是功能列表，而是一个<strong>在场的存在</strong>；界面应让这种在场可被感知、可被信任、可被依赖。</p>
+    <div class="principles">
+      <div class="principle"><div class="num">01</div><h3>唯一焦点</h3><p>每屏只立一个视觉主角——星澜。其余信息退为氛围与浮层，绝不抢戏。</p></div>
+      <div class="principle"><div class="num">02</div><h3>静水深流</h3><p>克制的动效与留白。呼吸、浮现、淡入，而非闪烁、弹跳、堆叠。</p></div>
+      <div class="principle"><div class="num">03</div><h3>冷暖有界</h3><p>冷青是系统的语言，暖金只留给「人的时刻」——需要你、确认、人的环。</p></div>
+      <div class="principle"><div class="num">04</div><h3>渲染而非罗列</h3><p>对话输出是结构化渲染（Markdown），记忆/目标是图谱而非表格，信息以「形态」表达。</p></div>
+    </div>
+  </section>
+
+  <!-- 信息架构 -->
+  <section>
+    <div class="sec-tag">Information Architecture</div>
+    <h2>信息架构（IA）</h2>
+    <p class="sec-desc">顶层为<strong>三态导航</strong>（首页 / 记忆 / 目标），「人的环」是跨态的确认时刻；后台由<strong>四步 Agent</strong>（规划→检索→执行→复核）驱动「进行中」与「需要你」。</p>
+    <div class="ia-stage">
+      <svg class="ia-svg" viewBox="0 0 820 320" role="img" aria-label="信息架构图">
+        <rect class="ia-node" x="300" y="14" width="220" height="44" rx="12"/>
+        <text class="ia-text" x="410" y="34" text-anchor="middle">三态导航 Dock</text>
+        <text class="ia-text-dim" x="410" y="50" text-anchor="middle">首页  ·  记忆  ·  目标</text>
+        <line class="ia-line" x1="380" y1="58" x2="380" y2="92"/>
+        <rect class="ia-node-core" x="250" y="92" width="260" height="150" rx="14"/>
+        <text class="ia-text" x="380" y="114" text-anchor="middle">首页 · 在场</text>
+        <text class="ia-text-dim" x="380" y="134" text-anchor="middle">① 星澜在场（核心/状态/记忆计数）</text>
+        <text class="ia-text-dim" x="380" y="152" text-anchor="middle">② 协同对话（多轮 / 渲染 / 建议）</text>
+        <text class="ia-text-dim" x="380" y="170" text-anchor="middle">③ 感知浮层（建议/进行中/需要你）</text>
+        <line class="ia-line" x1="410" y1="58" x2="410" y2="92"/>
+        <rect class="ia-node" x="40" y="92" width="180" height="150" rx="14"/>
+        <text class="ia-text" x="130" y="124" text-anchor="middle">记忆态</text>
+        <text class="ia-text-dim" x="130" y="146" text-anchor="middle">记忆星座</text>
+        <text class="ia-text-dim" x="130" y="164" text-anchor="middle">聚类 / 回溯 / 信任</text>
+        <line class="ia-line" x1="440" y1="58" x2="440" y2="92"/>
+        <rect class="ia-node" x="600" y="92" width="180" height="150" rx="14"/>
+        <text class="ia-text" x="690" y="124" text-anchor="middle">目标态</text>
+        <text class="ia-text-dim" x="690" y="146" text-anchor="middle">目标河流</text>
+        <text class="ia-text-dim" x="690" y="164" text-anchor="middle">意图 / 进度 / 里程碑</text>
+        <line class="ia-line-core" x1="380" y1="242" x2="380" y2="276"/>
+        <rect class="ia-node-gold" x="290" y="276" width="180" height="34" rx="12"/>
+        <text class="ia-text" x="380" y="298" text-anchor="middle" fill="#ffe2ad">人的环 · 需要你（确认仪式）</text>
+        <line class="ia-line" x1="510" y1="242" x2="690" y2="242"/>
+        <text class="ia-text-dim" x="690" y="262" text-anchor="middle">↳ 四步 Agent</text>
+        <text class="ia-text-dim" x="690" y="280" text-anchor="middle">规划→检索→执行→复核</text>
+      </svg>
+      <div class="legend">
+        <span><i style="background:rgba(111,214,255,.4)"></i> 主场域（首页/星澜）</span>
+        <span><i style="background:rgba(246,192,98,.4)"></i> 人的时刻（需要你）</span>
+        <span><i style="background:rgba(255,255,255,.12)"></i> 次级态 / 后台</span>
+      </div>
+    </div>
+    <div class="func-grid">
+      <div class="func"><div class="ic">◉</div><div><h4>在场陪伴</h4><p>星澜常驻、呼吸、状态可见；进入即被「看见」，离开即回归静默。</p></div></div>
+      <div class="func"><div class="ic">✦</div><div><h4>感知建议</h4><p>主动推送「此刻该留意的事」，而非等你来翻。</p></div></div>
+      <div class="func"><div class="ic">❏</div><div><h4>协同对话</h4><p>多轮对话，输出以 Markdown 结构化渲染；支持步骤内联展开。</p></div></div>
+      <div class="func"><div class="ic">◈</div><div><h4>记忆沉淀</h4><p>记住与你的关系事实，以星座形态聚类、可回溯、可信任。</p></div></div>
+      <div class="func"><div class="ic">⇲</div><div><h4>目标推进</h4><p>跟踪你的意图与进度，以河流形态呈现里程碑与卡点。</p></div></div>
+      <div class="func"><div class="ic">◍</div><div><h4>确认仪式</h4><p>「需要你」时刻以暖金 human's ring 提示，把决策权交还给你。</p></div></div>
+      <div class="func"><div class="ic">⚙</div><div><h4>后台执行</h4><p>规划 / 检索 / 执行 / 复核 四步 Agent，驱动「进行中」与「需要你」。</p></div></div>
+      <div class="func"><div class="ic">@</div><div><h4>指令导航</h4><p>输入 @记忆 / @目标 / @首页 直接跨态跳转；空发送在三态间循环。</p></div></div>
+    </div>
+  </section>
+
+  <!-- 布局决策 -->
+  <section>
+    <div class="sec-tag">Layout Decision</div>
+    <h2>布局决策（B 基准 · A 备选）</h2>
+    <p class="sec-desc">原型 v0.4 并列了版本 A（星澜左置）与版本 B（星澜居中）。本版<strong>选定版本 B 为基准实现</strong>：它与 persona v1.2 的 HomeComposite（星澜居中 hero + 双栏）一致，最契合「唯一焦点」原则；版本 A 降为窄屏/长对话备选。</p>
+    <div class="decision">
+      <div class="pick">
+        <h4>版本 B · 星澜居中英雄 <span class="tag base">基准 BASE</span></h4>
+        <ul>
+          <li><b>结构：</b>顶部英雄区（星澜居中＋问候/状态/字幕）→ 下双栏（对话主区 ｜ 感知侧栏）。</li>
+          <li><b>理由：</b>第一眼即焦点，仪式感强，最贴合「在场存在」；首页/记忆/目标三态共用同一 hero 语言。</li>
+          <li><b>适用：</b>陪伴、确认、关系型场景（默认桌面端）。</li>
+          <li><b>窄屏：</b>英雄区压缩、双栏竖向堆叠、底部 Tab 导航（见 §响应式）。</li>
+        </ul>
+      </div>
+      <div class="alt">
+        <h4>版本 A · 星澜左置沉浸 <span class="tag opt">备选 ALT</span></h4>
+        <ul>
+          <li><b>结构：</b>左固定星澜栏（96px）→ 中对话主区 → 右感知浮卡。</li>
+          <li><b>保留价值：</b>长对话、深度协同时信息密度更高，星澜「在身边」。</li>
+          <li><b>合并要点：</b>二者<strong>共享全部模块（M1–M6）与令牌</strong>；仅差异在 hero 位置与栏布局，可作为「对话专注模式」开关切换，不另起一套实现。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 核心功能页面（可演示） -->
+  <section>
+    <div class="sec-tag">Core Pages · Interactive</div>
+    <h2>核心功能页面（可点击切换）</h2>
+    <p class="sec-desc">点击下方导航在 <b>首页 / 记忆 / 目标 / 人的环</b> 间切换，预览真实界面元素、信息层级与操作路径。<em>纯 HTML/CSS 实现，无需脚本。</em></p>
+
+    <div class="pg">
+      <input type="radio" name="pg" id="pg-home" checked>
+      <input type="radio" name="pg" id="pg-memory">
+      <input type="radio" name="pg" id="pg-goals">
+      <input type="radio" name="pg" id="pg-ring">
+
+      <div class="pg-dock">
+        <label for="pg-home">首页</label>
+        <label for="pg-memory">记忆</label>
+        <label for="pg-goals">目标</label>
+        <label for="pg-ring" class="gold">人的环</label>
+      </div>
+
+      <!-- 首页 -->
+      <div class="pn pn-home">
+        <div class="frame">
+          <div class="frame-label">Home · 首页（版本 B 基准）</div>
+          <div class="home">
+            <div class="hero">
+              <div class="xc"><div class="ring r2"></div><div class="ring r1"></div><div class="orb"></div></div>
+              <div class="hi">晚上好，我是星澜</div>
+              <div class="sub">在听你 · 已为你记下 128 件事 · 1 件需要你拍板</div>
+            </div>
+            <div class="body">
+              <div class="bconv">
+                <div class="bub u">帮我整理这周的客户跟进</div>
+                <div class="bub a">
+                  <div class="md-h">已规划 → 检索 12 条记录 → 清单如下</div>
+                  <ul><li>A 客户：待回邮件</li><li>B 客户：合同已发，等签章</li><li>C 客户：本周复盘会待排期</li></ul>
+                </div>
+                <div class="bub u">不错，记下来</div>
+                <div class="composer"><span>和星澜聊聊，或 @记忆 / @目标…</span><span style="color:var(--core)">↑ 发送</span></div>
+              </div>
+              <div class="bperc">
+                <div class="pcard gold"><div class="l">需要你<span>·</span></div>Q3 预算待确认</div>
+                <div class="pcard"><div class="l">进行中</div>正在汇总周报<div class="prog"><i style="width:64%"></i></div></div>
+                <div class="pcard"><div class="l">建议</div>回顾目标里程碑</div>
+                <div class="pcard"><div class="l">记忆</div>128 条关系事实</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 记忆态 -->
+      <div class="pn pn-memory">
+        <div class="frame">
+          <div class="frame-label">Memory · 记忆态（星座）</div>
+          <div class="mem">
+            <div class="bar">
+              <div class="search">搜索记忆：客户 / 项目 / 偏好…</div>
+              <div class="pill">128 条 · 11 簇</div>
+            </div>
+            <div class="stage">
+              <svg viewBox="0 0 600 430" preserveAspectRatio="none" aria-hidden="true">
+                <line x1="300" y1="215" x2="150" y2="110" stroke="rgba(111,214,255,.18)"/>
+                <line x1="300" y1="215" x2="470" y2="120" stroke="rgba(111,214,255,.18)"/>
+                <line x1="300" y1="215" x2="140" y2="320" stroke="rgba(111,214,255,.18)"/>
+                <line x1="300" y1="215" x2="460" y2="310" stroke="rgba(246,192,98,.20)"/>
+                <line x1="150" y1="110" x2="470" y2="120" stroke="rgba(111,214,255,.12)"/>
+              </svg>
+              <div class="node" style="left:50%;top:50%"><div class="dot">★</div><div class="cap">星澜核心</div></div>
+              <div class="node" style="left:25%;top:26%"><div class="dot">◈</div><div class="cap">客户关系</div></div>
+              <div class="node" style="left:78%;top:28%"><div class="dot">⇲</div><div class="cap">项目推进</div></div>
+              <div class="node" style="left:23%;top:74%"><div class="dot">⚑</div><div class="cap">偏好与习惯</div></div>
+              <div class="node g" style="left:77%;top:72%"><div class="dot">◍</div><div class="cap">待你决策</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 目标态 -->
+      <div class="pn pn-goals">
+        <div class="frame">
+          <div class="frame-label">Goals · 目标态（河流）</div>
+          <div class="goals">
+            <div class="bar"><div class="t">目标河流 · 本季度</div><div class="pill">3 进行中 · 1 待拍板</div></div>
+            <div class="river">
+              <div class="flow">
+                <div class="ms done"><div class="h">完成 Q2 复盘 <span class="st">已完成</span></div><div class="d">已沉淀为记忆星座「项目推进」。</div></div>
+                <div class="ms"><div class="h">推进签约 5 家新客 <span class="st">进行中</span></div><div class="d">A/B 已发合同，C 待排期。本周聚焦 C。</div><div class="prog"><i style="width:60%"></i></div></div>
+                <div class="ms gold"><div class="h">Q3 预算确认 <span class="st">需要你</span></div><div class="d">需你拍板分配比例，星澜已给出建议方案。</div></div>
+                <div class="ms"><div class="h">建立周报自动化 <span class="st">规划中</span></div><div class="d">星澜后台执行中，完成后会告知。</div><div class="prog"><i style="width:25%"></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 人的环 -->
+      <div class="pn pn-ring">
+        <div class="frame" style="background:#04050b">
+          <div class="frame-label" style="color:var(--gold)">Human's Ring · 人的环</div>
+          <div class="ring">
+            <div class="backdrop"></div>
+            <div class="modal">
+              <div class="xc"><div class="ring r2"></div><div class="ring r1"></div><div class="orb"></div></div>
+              <h3>有件事，需要你拍板</h3>
+              <p>这关系到你本季度的推进节奏，我先把背景理清楚，决定权交给你。</p>
+              <div class="q">Q3 市场预算 12 万，建议按「新客拓展 7 / 老客维系 5」分配，是否确认？</div>
+              <div class="opts">
+                <button class="confirm">确认这个分配</button>
+                <button>看方案细节</button>
+                <button class="later">稍后提醒我</button>
+                <button class="later">这次先忽略</button>
+              </div>
+              <div class="hint">确认后星澜会落地执行；稍后将在感知侧栏保留暖金提醒。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 关键界面模块规格 -->
+  <section>
+    <div class="sec-tag">Key Modules</div>
+    <h2>关键界面模块规格</h2>
+    <p class="sec-desc">六个跨版本复用的核心模块。编号 M1–M6，定义其构成、状态与交互。</p>
+    <div class="mods">
+      <div class="mod">
+        <div class="mid">M1 · XinglanCore</div><h4>星澜核心</h4>
+        <p>呼吸光核 + 状态环 + 记忆计数。空闲仅留核心与一层细环；工作时对应节点（规划/检索/执行/复核）浮现。</p>
+        <ul><li>状态随统一状态机切换（见 §9）</li><li>字幕随对话流更新</li></ul>
+        <div class="states">states: calm / listening / thinking / speaking / waiting / happy / concerned / sleeping</div>
+      </div>
+      <div class="mod">
+        <div class="mid">M2 · Conversation</div><h4>协同对话流</h4>
+        <p>气泡序列，assistant 以 Markdown 渲染（标题/列表/代码/引用/表格）。回合可内联展开 Agent 步骤。</p>
+        <ul><li>流式打字效果</li><li>建议 chip 触发发送</li></ul>
+        <div class="states">states: idle / streaming / done / error</div>
+      </div>
+      <div class="mod">
+        <div class="mid">M3 · Perception</div><h4>感知浮层</h4>
+        <p>三类轻量卡：此刻建议 / 进行中（含进度条）/ 需要你（暖金）。可浮于对话之上或置于侧栏。</p>
+        <ul><li>「需要你」独占暖金</li><li>低打扰、可收起</li></ul>
+        <div class="states">states: suggest / in-progress / need-you</div>
+      </div>
+      <div class="mod">
+        <div class="mid">M4 · Dock</div><h4>三态导航</h4>
+        <p>首页 / 记忆 / 目标 极简导航。当前态以冰青高亮，切换带 1.1s 色调过渡。</p>
+        <ul><li>无文字冗余</li><li>支持 @指令直达</li></ul>
+        <div class="states">states: home / memory / goals</div>
+      </div>
+      <div class="mod">
+        <div class="mid">M5 · Composer</div><h4>输入与指令</h4>
+        <p>文本输入 + @记忆/@目标/@首页 指令。空发送在 首页→记忆→目标 循环切换。</p>
+        <ul><li>placeholder 引导</li><li>Enter 发送 / Shift+Enter 换行</li></ul>
+        <div class="states">states: empty / typing / sending</div>
+      </div>
+      <div class="mod">
+        <div class="mid">M6 · Constellation / River</div><h4>记忆星座 · 目标河流</h4>
+        <p>记忆态以星座聚类呈现关系事实；目标态以河流呈现意图与里程碑。两者均以「形态」而非列表表达。</p>
+        <ul><li>悬停展开详情</li><li>点击回溯对话</li></ul>
+        <div class="states">states: populated / empty / loading</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 交互流程 + 状态机 -->
+  <section>
+    <div class="sec-tag">Interaction Flow</div>
+    <h2>核心交互流程</h2>
+    <p class="sec-desc">从进入到回到在场的完整闭环，标注系统态与人的时刻。</p>
+    <div class="flow">
+      <div class="step"><div class="dot">1</div><h4>进入 · 在场</h4><p>星澜 greeting，状态 listening，展示记忆计数与当日感知。</p></div>
+      <div class="step"><div class="dot">2</div><h4>发起协同</h4><p>用户输入或点建议 chip，进入对话；@指令可直跳他态。</p></div>
+      <div class="step"><div class="dot">3</div><h4>思考 · 浮现</h4><p>状态 thinking，Agent 节点（规划→检索→执行→复核）依次浮现。</p></div>
+      <div class="step"><div class="dot">4</div><h4>渲染输出</h4><p>流式返回，assistant 气泡以 Markdown 渲染，可展开步骤。</p></div>
+      <div class="step gold"><div class="dot">5</div><h4>需要你</h4><p>暖金 human's ring 提示，用户确认 / 选择 / 忽略。</p></div>
+      <div class="step"><div class="dot">6</div><h4>沉淀 · 推进</h4><p>结果记入记忆（星座）或推进目标（河流）。</p></div>
+      <div class="step"><div class="dot">7</div><h4>回归在场</h4><p>回到静默陪伴，等待下一次发起。</p></div>
+    </div>
+
+    <div class="sm-stage">
+      <svg class="sm-svg" viewBox="0 0 780 240" role="img" aria-label="导航状态机">
+        <rect class="ia-node-core" x="300" y="14" width="180" height="50" rx="12"/>
+        <text class="ia-text" x="390" y="44" text-anchor="middle">home · 在场</text>
+        <rect class="ia-node" x="40" y="150" width="170" height="50" rx="12"/>
+        <text class="ia-text" x="125" y="180" text-anchor="middle">memory · 记忆态</text>
+        <rect class="ia-node" x="570" y="150" width="170" height="50" rx="12"/>
+        <text class="ia-text" x="655" y="180" text-anchor="middle">goals · 目标态</text>
+        <line class="ia-line" x1="300" y1="64" x2="125" y2="150"/>
+        <line class="ia-line" x1="460" y1="64" x2="655" y2="150"/>
+        <line class="ia-line-core" x1="390" y1="64" x2="390" y2="206"/>
+        <text class="ia-text-dim" x="200" y="112" text-anchor="middle">@记忆 / 点击</text>
+        <text class="ia-text-dim" x="580" y="112" text-anchor="middle">@目标 / 点击</text>
+        <text class="ia-text-dim" x="390" y="200" text-anchor="middle" fill="#ffe2ad">确认仪式 confirm:open</text>
+      </svg>
+      <div class="legend">
+        <span><i style="background:rgba(111,214,255,.4)"></i> 常态（home/memory/goals）</span>
+        <span><i style="background:rgba(246,192,98,.4)"></i> loop · 人的环（瞬时、跨态）</span>
+      </div>
+    </div>
+    <p class="sec-desc" style="margin-top:18px">状态机 = <b>{ home, memory, goals, loop }</b>。<b>home/memory/goals</b> 经 Dock 点击或 @指令互斥切换；<b>loop</b> 由 <code style="font-family:var(--mono);color:var(--gold)">confirm:open</code> 瞬时进入、覆盖当前态，确认/忽略/超时后回原态。事件广播遵循 persona v1.2 §5（13 类交互事件）。</p>
+  </section>
+
+  <!-- 状态反馈与边界情况 -->
+  <section>
+    <div class="sec-tag gold">States &amp; Edge Cases</div>
+    <h2>状态反馈与边界情况</h2>
+    <p class="sec-desc">覆盖加载、成功、错误、空态、离线/超时、人的环超时降级与流式中断。每条给出迷你预览、说明与恢复路径。</p>
+    <div class="states-grid">
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--core)"></span>加载 / 思考中<span class="k">thinking</span></div>
+        <div class="prev center">
+          <div class="typing"><i></i><i></i><i></i></div>
+          <div class="agent-steps"><span class="s active">规划</span><span class="s">检索</span><span class="s">执行</span><span class="s">复核</span></div>
+        </div>
+        <div class="desc">星澜核心转入 <b>thinking</b>，四步 Agent 节点依次亮起；对话区显示打字指示器。最长 <b>180s</b> 预算（见边界「超时」）。</div>
+        <div class="recover">↳ 可随时点停止；节点完成自动熄灭。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--core)"></span>成功<span class="k">success</span></div>
+        <div class="prev center"><div class="toast">✓ 已记入记忆（星座）</div></div>
+        <div class="desc">任务收下/完成时：<b>冰青脉冲</b>（~2.2s）轻提示，属系统语言、<b>不占暖金</b>。重大完成可同步推进目标河流进度。</div>
+        <div class="recover">↳ 提示自动消失，无阻断。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:#ff8a8a"></span>错误 + 重试<span class="k">error</span></div>
+        <div class="prev center">
+          <div class="err-box">
+            <span>⚠ 暂时没连上，没拿到结果</span>
+            <button class="retry">重试</button>
+          </div>
+        </div>
+        <div class="desc">接口返回非 2xx / 解析失败：对话气泡标 <b>error</b>，附 <b>重试</b> 入口；不弹出模态，不打断在场。</div>
+        <div class="recover">↳ 重试复用原请求；连续失败升级为离线横幅。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--ink-faint)"></span>空状态<span class="k">empty</span></div>
+        <div class="prev center">
+          <div class="empty"><span class="big">✦</span>还没有记忆<br/>和星澜聊聊，关系会慢慢长出来</div>
+        </div>
+        <div class="desc">记忆态/目标态首次为空：以 <b>引导文案 + 一个发起动作</b> 替代空列表；目标态空时引导「说一个这周想推进的事」。</div>
+        <div class="recover">↳ 用户首条对话后自动填充星座/河流首节点。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--gold)"></span>离线 / 网络超时<span class="k">timeout</span></div>
+        <div class="prev center">
+          <div class="offline-banner">⚠ 网络较慢，已等待 180s 仍无响应</div>
+          <div class="err-box" style="margin-top:8px"><span>可为这次任务稍后重试</span><button class="retry">稍后重试</button></div>
+        </div>
+        <div class="desc">超过 <b>180s</b> 总预算（server 侧已放宽 90→180s，避免「查网络超时」式中断）：顶部暖金横幅说明，提供 <b>稍后重试</b>，不丢输入。</div>
+        <div class="recover">↳ 网络恢复后横幅消失；草稿保留在输入框。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--gold)"></span>人的环超时降级<span class="k">loop-timeout</span></div>
+        <div class="prev center">
+          <div class="pcard gold" style="width:auto"><div class="l">需要你（待回应）</div>Q3 预算待确认 · 已静默保留</div>
+        </div>
+        <div class="desc">确认仪式开启后 <b>用户未回应</b>：不强制阻塞，暖金提醒降级为感知侧栏的「需要你」常驻卡，原对话继续。</div>
+        <div class="recover">↳ 点卡片随时回到确认；选「稍后」进入排程。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--core)"></span>流式中断<span class="k">stream-break</span></div>
+        <div class="prev center">
+          <div class="bub a" style="max-width:90%">正在生成…<br/><span style="color:var(--ink-faint);font-size:10px">— 连接中断，已保留上文 —</span></div>
+        </div>
+        <div class="desc">Markdown 流式输出中途断连：保留已渲染片段，气泡底注「连接中断」，提供 <b>继续生成</b>。</div>
+        <div class="recover">↳ 续生成从断点补完；不重复已有内容。</div>
+      </div>
+
+      <div class="state">
+        <div class="sh"><span class="led" style="background:var(--core)"></span>静默待机<span class="k">sleeping</span></div>
+        <div class="prev center">
+          <div class="xc sm"><div class="ring r2"></div><div class="orb" style="animation:none;opacity:.7"></div></div>
+          <div style="font-size:11px;color:var(--ink-faint)">星澜在后台守着</div>
+        </div>
+        <div class="desc">无活动一段时间后核心转入 <b>sleeping</b>：收起光晕、停止呼吸，仅留微光；新消息即时唤醒。</div>
+        <div class="recover">↳ 任意输入/通知立即回到 listening。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 视觉风格规范 -->
+  <section>
+    <div class="sec-tag">Visual System</div>
+    <h2>视觉风格规范</h2>
+    <p class="sec-desc">统一令牌（凝光 NINGGUANG，与 persona v1.2 令牌总表一致）：近黑深空 + 单一冰青焦点 + 暖金仅用于人的时刻。所有页面、模块、动效共用。</p>
+    <div class="spec">
+      <div class="spec-block">
+        <h3><span class="b"></span>色彩令牌</h3>
+        <div class="swatches">
+          <div class="sw"><div class="c" style="background:#05060d"></div><div class="n">深空底</div><div class="h">#05060d</div></div>
+          <div class="sw"><div class="c" style="background:#6fd6ff"></div><div class="n">冰青焦点</div><div class="h">#6fd6ff</div></div>
+          <div class="sw"><div class="c" style="background:rgba(111,214,255,.10)"></div><div class="n">焦点辉光</div><div class="h">soft</div></div>
+          <div class="sw"><div class="c" style="background:#f6c062"></div><div class="n">暖金·人</div><div class="h">#f6c062</div></div>
+          <div class="sw"><div class="c" style="background:rgba(255,255,255,.04)"></div><div class="n">玻璃面</div><div class="h">glass</div></div>
+          <div class="sw"><div class="c" style="background:rgba(255,255,255,.08)"></div><div class="n">发丝边</div><div class="h">brd</div></div>
+        </div>
+        <div class="dodont">
+          <div class="dd do"><b>用</b>冷青表达系统一切状态；暖金只出现在「需要你 / 确认 / 人的环」。</div>
+          <div class="dd dont"><b>忌</b>引入第二、第三种彩色强调（紫/绿/蓝），避免配色打架。</div>
+        </div>
+      </div>
+      <div class="spec-block">
+        <h3><span class="b"></span>字体与层级</h3>
+        <div class="type-row"><span class="t">Display</span><span class="s" style="font-size:26px;font-weight:600;letter-spacing:-.5px;">晚上好，我是星澜</span></div>
+        <div class="type-row"><span class="t">Title</span><span class="s" style="font-size:18px;font-weight:600;">记忆星座</span></div>
+        <div class="type-row"><span class="t">Body</span><span class="s" style="font-size:14px;">星澜在后台持续推进，完成会告诉你。</span></div>
+        <div class="type-row"><span class="t">Caption</span><span class="s" style="font-size:12px;color:var(--ink-dim)">在听你 · 已记下 128 件事</span></div>
+        <div class="type-row"><span class="t">Mono</span><span class="s" style="font-family:var(--mono);font-size:12px;color:var(--core)">@记忆 / @目标 / @首页</span></div>
+        <p style="font-size:11.5px;color:var(--ink-faint);margin-top:14px;">字体：-apple-system / PingFang SC / Microsoft YaHei；代码用等宽。字重克制，靠字号与颜色建立层级。</p>
+      </div>
+      <div class="spec-block">
+        <h3><span class="b"></span>间距 · 圆角 · 阴影</h3>
+        <div class="scale-bar"></div>
+        <div class="type-row"><span class="t">Space</span><span class="s" style="font-size:13px;">4 / 8 / 14 / 22 / 38（--space-1..5）</span></div>
+        <div class="type-row"><span class="t">Radius</span><span class="s" style="font-size:13px;">S10 · M14 · L20 · XL26</span></div>
+        <div class="type-row"><span class="t">Shadow</span><span class="s" style="font-size:13px;">柔投影 0 24 60 -30，配内描边 1px 白 5%</span></div>
+        <div class="type-row"><span class="t">Blur</span><span class="s" style="font-size:13px;">玻璃面板 backdrop-filter: blur(20–28px)</span></div>
+      </div>
+      <div class="spec-block">
+        <h3><span class="b"></span>动效原则</h3>
+        <div class="type-row"><span class="t">呼吸</span><span class="s" style="font-size:13px;">核心 4.2s ease-in-out 无限，幅度 ±7%</span></div>
+        <div class="type-row"><span class="t">浮现</span><span class="s" style="font-size:13px;">节点/卡片 opacity+translateY 8px，.4s</span></div>
+        <div class="type-row"><span class="t">过渡</span><span class="s" style="font-size:13px;">态切换 1.1s 色调渐变（cubic-bezier(.22,.61,.36,1)）</span></div>
+        <div class="type-row"><span class="t">旋转</span><span class="s" style="font-size:13px;">外环 18s 线性，仅作极淡氛围</span></div>
+        <div class="dodont">
+          <div class="dd do"><b>用</b>慢、柔、少；动效服务于「在场感」与焦点引导。</div>
+          <div class="dd dont"><b>忌</b>弹跳、闪烁、同时多元素强动效，避免噪点。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 响应式与多端 -->
+  <section>
+    <div class="sec-tag">Responsive</div>
+    <h2>响应式与多端适配</h2>
+    <p class="sec-desc">三档断点，窄屏以「英雄区压缩 + 底部 Tab」保住唯一焦点与完整操作路径；触控热区 ≥44px。</p>
+    <div class="resp">
+      <div class="bp"><div class="w">≥ 921px</div><h4>桌面（基准）</h4><ul><li>版本 B 双栏：对话主 + 感知侧</li><li>Dock 顶部三态导航</li><li>悬停展开记忆/目标详情</li></ul></div>
+      <div class="bp"><div class="w">561–920px</div><h4>平板</h4><ul><li>双栏竖向堆叠，感知侧栏转横向卡片行</li><li>英雄区高度压缩（208→150px）</li><li>Dock 保持顶部</li></ul></div>
+      <div class="bp"><div class="w">≤ 560px</div><h4>手机</h4><ul><li>英雄区极简（星澜+问候）</li><li>底部 Tab 导航（首页/记忆/目标），人的环为浮层</li><li>触控热区 ≥44px，气泡全宽</li></ul></div>
+    </div>
+  </section>
+
+  <!-- 验收标准 -->
+  <section>
+    <div class="sec-tag">Definition of Done</div>
+    <h2>验收标准（DoD）</h2>
+    <p class="sec-desc">落地面板可据此逐条勾选；本原型即验收基准。</p>
+    <div class="dod">
+      <div class="col">
+        <h4>视觉 / 结构</h4>
+        <label><span class="cb">✓</span> 每屏仅星澜一个视觉焦点，其余为氛围/浮层</label>
+        <label><span class="cb">✓</span> 暖金仅出现在「需要你 / 确认 / 人的环」</label>
+        <label><span class="cb">✓</span> 三态导航可达且当前态冰青高亮</label>
+        <label><span class="cb">✓</span> 对话输出为 Markdown 渲染（非纯文本）</label>
+        <label><span class="cb">✓</span> 令牌全部取自 persona v1.2 总表，无新色</label>
+      </div>
+      <div class="col gold">
+        <h4>交互 / 边界</h4>
+        <label><span class="cb">✓</span> 人的环可由 confirm:open 触发并回到原态</label>
+        <label><span class="cb">✓</span> 超时（180s）有降级横幅 + 稍后重试，不丢输入</label>
+        <label><span class="cb">✓</span> 错误态附重试入口，不弹模态阻断</label>
+        <label><span class="cb">✓</span> 记忆/目标空态有引导，非空列表</label>
+        <label><span class="cb">✓</span> 移动端底部 Tab 完整、触控 ≥44px</label>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <b>星澜 XINGLAN · 关系界面 UI 设计原型（凝光 NINGGUANG v1.0 · 可演示评审稿）</b><br/>
+    本原型为设计评审稿，结构与令牌将作为 React 实现规范；其令牌集与 persona v1.2 令牌总表为同一来源。<br/>
+    <b>变更日志：</b>v0.4→v1.0｜① 决议版本 B 为基准、A 降备选；② 新增可点击切换的真实三态页面 + 人的环模态；③ 新增状态反馈与边界情况（加载/成功/错误/空态/离线超时/人的环降级/流式中断/待机）；④ 新增交互状态机、响应式、验收标准(DoD)；⑤ 令牌对齐 persona v1.2。<br/>
+    <b>下一步：</b>依据本稿 + persona v1.2 交互架构（§5）逐节落地；功能迁移前须先闭合 migration-readiness 中的 B1–B4 阻塞。
+  </footer>
+
+</div>
+</body>
+</html>
