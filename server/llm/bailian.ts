@@ -16,6 +16,8 @@ import type { IntentCode } from '../db.js';
 import { activeToolDefs, execTool, askUser } from '../tools/registry.js';
 import type { ToolContext } from '../tools/registry.js';
 import { buildSystemPrompt, buildMemoryContext, MAX_AGENT_ITERATIONS } from '../agent.js';
+import { guardBareQuestion, couldBeBareQuestion } from '../clarify.js';
+import type { ClarifyCtx } from '../clarify.js';
 import {
   getBailianApiKey,
   getBailianModel,
@@ -343,6 +345,8 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
   const system = systemOverride || buildSystemPrompt(memoryContext, toolDefs.map((t) => t.name));
   const toolsUsed: string[] = [];
   let fullText = '';
+  // 护栏生成的「可点选澄清选项」（最后一轮纯文本被判为空泛反问时产出）；随 done 下发给前端
+  let pendingChoices: string[] | undefined;
 
   // —— L0+ ② 最小 span 埋点 ——
   // 没有它，「并行执行/记忆预注入到底省了几轮」就只是感觉，无法证明也无法回归。
@@ -377,11 +381,21 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
   // 「打开产物」兜底：命中时把真实内容拼进用户消息，避免模型凭记忆编造
   const opened = tryFindArtifactContent(owner, String(message || ''));
   const userContent = opened ? `${String(message || '')}\n\n${opened}` : String(message || '');
+  const history = buildHistory(sessionId, String(message || ''));
   const messages: any[] = [
     { role: 'system', content: system },
-    ...buildHistory(sessionId, String(message || '')),
+    ...history,
     { role: 'user', content: userContent },
   ];
+
+  // 「空泛反问」护栏上下文：只保护「提醒/待办」一族，并带回上文说过的时间/事件做推断依据
+  const clarifyCtx: ClarifyCtx = {
+    message: String(message || ''),
+    history: history
+      .filter((m: { role: string }) => m.role === 'user')
+      .map((m: { content: string }) => String(m.content || ''))
+      .slice(-6),
+  };
 
   const ctx: ToolContext = { owner, sessionId, intent };
 
@@ -389,16 +403,52 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
     for (let iter = 0; iter < (maxIter ?? MAX_AGENT_ITERATIONS); iter++) {
       span.iterations = iter + 1;
       let toolCalls: ToolCall[] = [];
+      // 本轮文本先攒着，不直接吐——「空泛反问」护栏要等整句到底才能判定；
+      // 但在「还可能是空泛反问」的观察窗内也憋住前几个字，避免空话已经展示给用户才补救。
+      // ⚠️ yield 必须在生成器顶层（闭包里不能 yield），所以这里内联，不用 emit 辅助函数。
+      let iterText = '';
+      let held = true; // 仍处于「可能空泛反问」的观察窗
       for await (const chunk of streamCompat(provider, messages, toOpenAiTools(toolDefs), ac.signal)) {
         if (chunk.kind === 'text') {
-          fullText += chunk.content;
-          yield { type: 'text', content: chunk.content, role };
+          iterText += chunk.content;
+          if (!held) {
+            fullText += chunk.content; // 已确认不是空泛反问：逐字直通
+            yield { type: 'text', content: chunk.content, role };
+          } else if (!couldBeBareQuestion(iterText, clarifyCtx)) {
+            fullText += iterText; // 翻窗：把已攒的字一次性吐出并转直通
+            yield { type: 'text', content: iterText, role };
+            iterText = '';
+            held = false;
+          }
+          // 仍在观察窗内：继续憋，不吐
         } else {
           toolCalls = chunk.toolCalls;
         }
       }
 
-      if (!toolCalls.length) break;
+      if (!toolCalls.length) {
+        // 最后一轮纯文本：落定判定。仍憋着的字若是空泛反问，用护栏生成的替代回复替换；否则原样吐出。
+        if (held) {
+          const fixed = guardBareQuestion(iterText, clarifyCtx);
+          if (fixed.repaired) {
+            fullText += fixed.text;
+            yield { type: 'text', content: fixed.text, role };
+            pendingChoices = fixed.choices;
+          } else {
+            fullText += iterText;
+            yield { type: 'text', content: iterText, role };
+          }
+        }
+        break;
+      }
+
+      // 有工具调用：本轮文本是工具前的前情提要，先把憋着的字补齐，再照常执行工具
+      if (held) {
+        fullText += iterText;
+        yield { type: 'text', content: iterText, role };
+        iterText = '';
+        held = false;
+      }
 
       // 把带 tool_calls 的助手消息回写上下文（Dash 要求 assistant 消息带 tool_calls 才能跟 tool 结果）
       messages.push({
@@ -511,6 +561,7 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
       toolsUsed: Array.from(new Set(toolsUsed)),
       fallback: false,
       role,
+      choices: pendingChoices,
     };
   } catch (error: any) {
     const errMsg = error?.message || String(error);

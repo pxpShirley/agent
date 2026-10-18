@@ -20,6 +20,9 @@
  * 运行：npm run eval
  */
 import type * as DbNS from '../server/db.js';
+// 单一真相源：空泛反问的话术库由 server/clarify.ts 提供，护栏与 eval 共用同一份判据。
+// 护栏生成替代回复时也会逐条断言「不得包含这些串」——eval 与护栏必须永远一致。
+import { BARE_QUESTION_PHRASES } from '../server/clarify.js';
 
 export interface SeedCtx {
   db: typeof DbNS;
@@ -60,18 +63,12 @@ export interface EvalCase {
   expect: Expect;
 }
 
-/** 空泛反问的话术库：把球整个踢回给用户，是提示词第 7 条明令禁止的 */
-export const EMPTY_QUESTION = [
-  '提醒什么事',
-  '提醒什么内容',
-  '什么提醒',
-  '请告诉我具体',
-  '你想提醒什么',
-  '需要提醒什么',
-  '请问要提醒',
-  '你想让我做什么',
-  '能具体说说吗',
-];
+/**
+ * 空泛反问的话术库：把球整个踢回给用户，是提示词第 7 条明令禁止的。
+ * 直接复用 server/clarify.ts 的 BARE_QUESTION_PHRASES——判据只有这一份，
+ * 避免「eval 禁一批话术、护栏却放另一批」导致护栏生成的替代回复反而被 eval 判违规。
+ */
+export const EMPTY_QUESTION = BARE_QUESTION_PHRASES;
 
 /** 自我否定话术：工具已经返回成功，模型事后改口说没做 —— 比做错更伤信任 */
 export const SELF_DENIAL = [

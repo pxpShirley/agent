@@ -80,6 +80,7 @@ interface CaseResult {
   why: string[];
   text: string;
   tools: string[];
+  choices: string[];
 }
 
 async function runCase(c: EvalCase): Promise<CaseResult> {
@@ -90,6 +91,8 @@ async function runCase(c: EvalCase): Promise<CaseResult> {
 
   let text = '';
   let tools: string[] = [];
+  /** 「空泛反问」护栏生成的选项（最后一轮纯文本被判为空泛反问时产出） */
+  let choices: string[] = [];
   /** 引擎是否回退到本地兜底。回退出来的"通过"是假的：测的是 mock，不是模型。 */
   let fellBack = false;
   let engineError = '';
@@ -99,18 +102,21 @@ async function runCase(c: EvalCase): Promise<CaseResult> {
     const intent = c.intent ?? classifyIntent(turn).intent;
     let turnText = '';
     const turnTools: string[] = [];
+    let turnChoices: string[] = [];
     for await (const ev of runBailianAgentTurn({ sessionId, message: turn, customerName: owner, intent })) {
       if (ev.type === 'text') turnText += ev.content || '';
       else if (ev.type === 'tool') turnTools.push(ev.name);
       else if (ev.type === 'done') {
         if (ev.fullText) turnText = ev.fullText;
         if (ev.toolsUsed?.length) tools = ev.toolsUsed.slice();
+        if (ev.choices?.length) turnChoices = ev.choices;
         if (ev.fallback) fellBack = true;
         if (ev.error) engineError = ev.error;
       }
     }
     // 合并本轮工具：done.toolsUsed 更全，但流式 tool 事件更及时，两者取并集
     tools = Array.from(new Set([...tools, ...turnTools]));
+    choices = turnChoices;
     text = turnText;
     // 写回历史：下一轮的 buildHistory 依赖它
     db.createMessage({ id: randomUUID(), session_id: sessionId, role: 'assistant', content: turnText });
@@ -119,9 +125,9 @@ async function runCase(c: EvalCase): Promise<CaseResult> {
   // ⚠️ 兜底必须判失败。否则网络一抖，本地 mock 的输出会被当成模型表现，
   //    eval 从"尺子"变成"安慰剂"——而且是最难发现的那种假绿。
   if (fellBack) {
-    return { why: [`引擎回退到本地兜底（${engineError || '未给出原因'}），此用例不算通过`], text, tools };
+    return { why: [`引擎回退到本地兜底（${engineError || '未给出原因'}），此用例不算通过`], text, tools, choices };
   }
-  return { why: judge(c, text, tools), text, tools };
+  return { why: judge(c, text, tools), text, tools, choices };
 }
 
 console.log(`\n星澜 Evals · ${cases.length} 条用例 · 真实引擎\n`);
@@ -130,11 +136,11 @@ let failed = 0;
 const t0 = Date.now();
 for (const c of cases) {
   const started = Date.now();
-  let r: CaseResult = { why: [], text: '', tools: [] };
+  let r: CaseResult = { why: [], text: '', tools: [], choices: [] };
   try {
     r = await withDeadline(runCase(c), CASE_TIMEOUT_MS, c.id);
   } catch (err) {
-    r = { why: [`运行异常：${(err as Error).message}`], text: '', tools: [] };
+    r = { why: [`运行异常：${(err as Error).message}`], text: '', tools: [], choices: [] };
   }
   const dur = ((Date.now() - started) / 1000).toFixed(1);
   if (r.why.length) {
@@ -143,6 +149,7 @@ for (const c of cases) {
     r.why.forEach((w) => console.log(`      - ${w}`));
     // 失败时打印原文：不看到模型到底说了什么，就无法判断是断言不合理还是模型真没做对
     console.log(`      工具：[${r.tools.join(', ') || '无'}]`);
+    console.log(`      护栏选项：[${r.choices.join(' | ') || '无'}]`);
     console.log(`      原文：${r.text.replace(/\s+/g, ' ').slice(0, 260) || '（空）'}`);
   } else {
     console.log(`  ✓ ${c.id}（${dur}s）`);

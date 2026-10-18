@@ -290,6 +290,7 @@ export function useServiceChat() {
                 tools: data.tools || [],
                 steps: [...settle(data.fallback === true)],
                 artifacts: artifacts.length ? [...artifacts] : undefined,
+                ...(data.choices?.length ? { choices: data.choices } : {}),
               });
               setIntent({ code: data.intent, label: data.intentLabel || intentLabelOf(data.intent) });
               // 引擎不可用时明确告知，避免把兜底回复当成模型的真实回答；

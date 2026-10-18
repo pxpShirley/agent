@@ -66,6 +66,8 @@ export interface ChatMessage {
   pendingQuestion?: PendingQuestion;
   /** 多 Agent 交付的结构化产物（行程卡 / 报告 / 清单） */
   artifacts?: Artifact[];
+  /** 「空泛反问」护栏：当本回复被服务端替换成「推断 + 可点选选项」时，附带的选项按钮 */
+  choices?: string[];
   createdAt: string;
   isStreaming?: boolean;
 }

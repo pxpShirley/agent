@@ -40,7 +40,7 @@ export type AgentEvent =
       artifactType: string;
       action: 'created' | 'updated';
     }
-  | { type: 'done'; fullText: string; intent: IntentCode; toolsUsed: string[]; fallback: boolean; error?: string; sdkSessionId?: string; role?: string };
+  | { type: 'done'; fullText: string; intent: IntentCode; toolsUsed: string[]; fallback: boolean; error?: string; sdkSessionId?: string; role?: string; choices?: string[] };
 
 export interface AgentTurnOptions {
   sessionId: string;

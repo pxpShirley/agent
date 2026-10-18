@@ -275,6 +275,44 @@
   background: color-mix(in srgb, var(--gold) 8%, var(--surface-1));
 }
 
+/* —— 可点选澄清选项（服务端「空泛反问」护栏生成）—— */
+.cv-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+/* 本项目无全局 button reset：新 <button> 必须显式 appearance/background/cursor */
+.cv-choices :where(button) {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.cv-choice {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 11px;
+  border-radius: 999px;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+  transition: var(--dur-fast) var(--ease);
+  text-align: left;
+}
+.cv-choice:hover {
+  color: #fff;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--brand) 82%, #fff), var(--brand));
+  border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+  box-shadow: 0 0 14px -6px var(--brand-glow, var(--brand));
+}
+.cv-choice:active { transform: translateY(1px); }
+
 /* —— Markdown 渲染（助手输出）—— 沿用既有设计令牌，不写死颜色 */
 .cv-md {
   white-space: normal;

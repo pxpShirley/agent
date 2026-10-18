@@ -143,6 +143,25 @@ const AgentRow = memo(function AgentRow({
           <div className="cv-text cv-md" dangerouslySetInnerHTML={{ __html: html }} />
         )}
 
+        {/* —— 可点选澄清选项：服务端「空泛反问」护栏把死问题换成推断 + 选项 —— */}
+        {m.choices && m.choices.length > 0 && (
+          <div className="cv-choices" aria-label="可直接选择">
+            {m.choices.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className="cv-choice"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSend(c);
+                }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* —— 执行情况：本轮管家真实走过的动作 —— */}
         {steps && steps.length > 0 && (
           <div className="cv-steps" aria-label="执行情况">

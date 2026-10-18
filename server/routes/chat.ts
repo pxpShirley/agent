@@ -77,6 +77,7 @@ app.post('/api/chat', async (req, res) => {
   let toolsUsed: string[] = [];
   let usedFallback = false;
   let sdkSessionId = session.sdk_session_id ?? undefined;
+  let clarifyChoices: string[] | undefined;
 
   // 首轮：用首条消息作标题
   if (db.getMessagesBySession(session.id).length === 1) {
@@ -122,6 +123,7 @@ app.post('/api/chat', async (req, res) => {
         finalIntent = ev.intent;
         toolsUsed = ev.toolsUsed;
         usedFallback = ev.fallback;
+        if (ev.choices?.length) clarifyChoices = ev.choices;
         if (ev.sdkSessionId) sdkSessionId = ev.sdkSessionId;
         if (ev.error) {
           engineErrored = true;
@@ -219,6 +221,7 @@ app.post('/api/chat', async (req, res) => {
     intentLabel: INTENT_LABELS[finalIntent],
     fallback: usedFallback,
     tools: toolsUsed,
+    ...(clarifyChoices ? { choices: clarifyChoices } : {}),
   });
   res.end();
   // 一轮对话结束：活动流/记忆/收件箱可能已变化，通知指挥舱刷新
