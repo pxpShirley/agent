@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>星澜 · 特色能力原型</title>
+<style>
+:root{
+  --bg-deep:#05070e; --bg-base:#0a0e1a; --bg-glass:rgba(255,255,255,.03); --bg-glass-2:rgba(255,255,255,.06);
+  --t1:#f0f4fe; --t2:rgba(240,244,254,.6); --t3:rgba(240,244,254,.25);
+  --core:#6fd6ff; --core-soft:rgba(111,214,255,.15); --core-glow:rgba(111,214,255,.25);
+  --gold:#f6c062; --gold-soft:rgba(246,192,98,.15); --gold-glow:rgba(246,192,98,.25);
+  --bd:rgba(255,255,255,.04); --bd2:rgba(255,255,255,.08);
+  --r-md:16px; --r-lg:24px; --r-xl:32px; --r-full:9999px;
+  --sh:0 12px 48px -12px rgba(0,0,0,.6);
+  --spring:cubic-bezier(.34,1.56,.64,1); --out:cubic-bezier(.22,1,.36,1);
+  --urg:0;
+  --font:"SF Pro Display",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg-deep);color:var(--t1);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:16px}
+button{appearance:none;background:transparent;border:none;color:inherit;font:inherit;cursor:pointer}
+.scene{width:100%;max-width:1380px;height:92vh;max-height:900px;display:flex;gap:16px}
+
+/* ---------- Rail ---------- */
+.rail{width:186px;flex:none;display:flex;flex-direction:column;gap:6px;padding:22px 12px;background:linear-gradient(180deg,var(--bg-base),rgba(10,14,26,.5));border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:var(--sh)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px}
+.brand-dot{width:11px;height:11px;border-radius:50%;background:var(--core);box-shadow:0 0 14px var(--core-glow);flex:none}
+.brand-t{font-size:14px;font-weight:500;letter-spacing:.06em}
+.brand-s{font-size:11px;color:var(--t3);letter-spacing:.22em;margin-top:2px}
+.nav{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:12px;color:var(--t2);font-size:13px;transition:all .34s var(--out);text-align:left;width:100%;position:relative}
+.nav:hover{background:var(--bg-glass);color:var(--t1)}
+.nav.on{background:var(--core-soft);color:var(--t1)}
+.nav.on::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:2px;height:16px;border-radius:2px;background:var(--core);box-shadow:0 0 10px var(--core-glow)}
+.mark{width:16px;height:16px;flex:none;position:relative;opacity:.85}
+.nav.on .mark{opacity:1}
+.m-band i{position:absolute;left:0;border-radius:2px;background:var(--core);height:3px}
+.m-band i:nth-child(1){top:2px;width:16px}
+.m-band i:nth-child(2){top:7px;width:10px}
+.m-band i:nth-child(3){top:12px;width:13px}
+.m-star i{position:absolute;background:var(--core);border-radius:50%}
+.m-star i:nth-child(1){width:5px;height:5px;left:5px;top:1px}
+.m-star i:nth-child(2){width:3px;height:3px;left:0;top:8px;opacity:.6}
+.m-star i:nth-child(3){width:3px;height:3px;left:11px;top:9px;opacity:.6}
+.m-ring{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--core);position:relative}
+.m-ring::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--gold);opacity:calc(.2 + var(--urg)*.8);transition:opacity .4s}
+.m-eye{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--core);position:relative}
+.m-eye::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--core)}
+.m-seed{width:16px;height:16px;position:relative}
+.m-seed i{position:absolute;background:var(--core);border-radius:2px}
+.m-seed i:nth-child(1){width:2px;height:9px;left:7px;top:0}
+.m-seed i:nth-child(2){width:7px;height:2px;left:8px;top:7px;opacity:.65}
+.m-seed i:nth-child(3){width:5px;height:2px;left:3px;top:11px;opacity:.4}
+.rail-foot{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--bd);font-size:11px;color:var(--t3);line-height:1.7}
+
+/* ---------- Panel ---------- */
+.panel{flex:1;min-width:0;background:linear-gradient(160deg,var(--bg-base),rgba(5,7,14,.85));border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:var(--sh);display:flex;flex-direction:column;overflow:hidden}
+.phead{padding:20px 26px 14px;border-bottom:1px solid var(--bd);flex:none}
+.ptitle{font-size:17px;font-weight:500;letter-spacing:.02em}
+.psub{font-size:12px;color:var(--t3);margin-top:5px;line-height:1.6}
+.pbody{flex:1;min-height:0;overflow-y:auto;padding:22px 26px 40px;position:relative}
+.pbody::-webkit-scrollbar{width:6px}
+.pbody::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+.view{display:none;animation:fade .5s var(--out)}
+.view.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.why{margin-top:18px;padding:13px 16px;border-left:2px solid var(--core-soft);border-radius:0 10px 10px 0;background:var(--bg-glass);font-size:12px;color:var(--t2);line-height:1.75}
+.why b{color:var(--t1);font-weight:500}
+
+/* ---------- 1 一天的天气 ---------- */
+.wx-line{font-size:15px;color:var(--t1);margin-bottom:16px;line-height:1.6}
+.wx-line em{font-style:normal;color:var(--gold)}
+.band{position:relative;height:186px;border:1px solid var(--bd);border-radius:var(--r-md);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent);overflow:hidden}
+.bgrid{position:absolute;inset:0;display:flex}
+.bgrid span{flex:1;border-right:1px solid var(--bd)}
+.bgrid span:last-child{border-right:none}
+.blobs{position:absolute;inset:0}
+.blob{position:absolute;top:50%;border-radius:50%;transform:translate(-50%,-50%);transition:transform .4s var(--spring)}
+.blob .halo{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,var(--core) 0%,rgba(111,214,255,.32) 42%,transparent 70%)}
+.blob.gold .halo{background:radial-gradient(circle,var(--gold) 0%,rgba(246,192,98,.34) 42%,transparent 70%)}
+.blob.done .halo{background:radial-gradient(circle,rgba(240,244,254,.14) 0%,rgba(240,244,254,.05) 45%,transparent 70%)}
+.blob .pit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 10px var(--core)}
+.blob.gold .pit{background:#fff;box-shadow:0 0 12px var(--gold)}
+.blob.done .pit{width:4px;height:4px;background:rgba(240,244,254,.3);box-shadow:none}
+.blob:hover{transform:translate(-50%,-50%) scale(1.14)}
+.blob.gold .halo{animation:breathe 2.6s var(--out) infinite}
+@keyframes breathe{0%,100%{opacity:.72}50%{opacity:1}}
+.nowline{position:absolute;top:0;bottom:34px;width:1px;background:linear-gradient(180deg,transparent,var(--core),transparent);opacity:.55}
+.nowline::before{content:"";position:absolute;top:-1px;left:-3px;width:7px;height:7px;border-radius:50%;background:var(--core);box-shadow:0 0 12px var(--core)}
+.nowtag{position:absolute;top:6px;font-size:10px;color:var(--core);letter-spacing:.08em;white-space:nowrap}
+.dens{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:flex-end;gap:3px;padding:0 8px 8px}
+.dens i{flex:1;border-radius:2px 2px 0 0;background:linear-gradient(180deg,var(--core),rgba(111,214,255,.16));min-height:2px;transition:height .6s var(--out)}
+.hours{display:flex;justify-content:space-between;margin-top:7px;font-size:10px;color:var(--t3);letter-spacing:.05em}
+.tip{position:fixed;pointer-events:none;z-index:60;padding:9px 13px;background:rgba(10,14,26,.96);border:1px solid var(--bd2);border-radius:10px;font-size:12px;box-shadow:var(--sh);opacity:0;transition:opacity .18s;max-width:230px}
+.tip.on{opacity:1}
+.tip .tt{font-weight:500;margin-bottom:3px}
+.tip .ts{color:var(--t2);font-size:11px}
+.tip .tg{color:var(--gold)}
+.wx-legend{display:flex;gap:18px;margin-top:16px;font-size:11px;color:var(--t3);flex-wrap:wrap}
+.wx-legend span{display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%}
+
+/* ---------- 2 记忆星图 ---------- */
+.sky{position:relative;height:400px;border:1px solid var(--bd);border-radius:var(--r-md);overflow:hidden;background:radial-gradient(ellipse at 50% 45%,rgba(111,214,255,.05),transparent 68%)}
+.sky canvas{display:block;width:100%;height:100%}
+.sky-lab{position:absolute;font-size:10px;color:var(--t3);letter-spacing:.16em;pointer-events:none}
+.sky-q{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 16px;background:rgba(246,192,98,.1);border:1px solid rgba(246,192,98,.28);border-radius:var(--r-full);font-size:12px;color:var(--gold);white-space:nowrap;opacity:0;transition:opacity .5s var(--out)}
+.sky-q.on{opacity:1}
+.sky-legend{display:flex;gap:22px;margin-top:14px;font-size:11px;color:var(--t3);flex-wrap:wrap}
+.sky-legend span{display:flex;align-items:center;gap:7px}
+.bar{width:34px;height:6px;border-radius:3px;background:linear-gradient(90deg,rgba(240,244,254,.16),var(--core))}
+
+/* ---------- 3 沉默的提醒 ---------- */
+.amb{display:grid;grid-template-columns:1fr 260px;gap:22px;align-items:start}
+.amb-orb{height:300px;border:1px solid var(--bd);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;position:relative;background:radial-gradient(circle at 50% 50%,rgba(111,214,255,.05),transparent 70%);transition:border-color .5s}
+.amb-orb.hot{border-color:rgba(246,192,98,.3)}
+.amb-ctl{display:flex;flex-direction:column;gap:16px}
+.ctl-t{font-size:11px;color:var(--t3);letter-spacing:.16em}
+.slider{width:100%;-webkit-appearance:none;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--core),var(--gold));outline:none}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 0 12px var(--core-glow);cursor:pointer}
+.slider::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:#fff;cursor:pointer}
+.ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:-8px}
+.state{padding:12px 14px;border-radius:12px;background:var(--bg-glass);border:1px solid var(--bd);font-size:12px;color:var(--t2);line-height:1.7}
+.state b{display:block;color:var(--t1);font-weight:500;margin-bottom:4px;font-size:13px}
+.quiet{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:12px;border:1px solid var(--bd);background:var(--bg-glass);font-size:12px;color:var(--t2);cursor:pointer;transition:all .3s}
+.quiet:hover{border-color:var(--bd2)}
+.sw{width:34px;height:19px;border-radius:var(--r-full);background:rgba(255,255,255,.1);position:relative;transition:background .3s;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--t2);transition:all .3s var(--spring)}
+.quiet.on .sw{background:var(--gold-soft)}
+.quiet.on .sw::after{left:17px;background:var(--gold)}
+.human{margin-top:16px;padding:16px 18px;border-radius:var(--r-md);border:1px solid rgba(246,192,98,.3);background:rgba(246,192,98,.07);opacity:0;transform:translateY(10px);transition:all .5s var(--spring);pointer-events:none}
+.human.on{opacity:1;transform:none;pointer-events:auto}
+.human h4{font-size:13px;font-weight:500;color:var(--gold);margin-bottom:6px}
+.human p{font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:12px}
+.hacts{display:flex;gap:8px;flex-wrap:wrap}
+.hact{padding:7px 14px;border-radius:var(--r-full);border:1px solid rgba(246,192,98,.32);color:var(--gold);font-size:12px;transition:all .28s}
+.hact:hover{background:var(--gold-soft)}
+.hact.ghost{border-color:var(--bd2);color:var(--t2)}
+.hact.ghost:hover{background:var(--bg-glass)}
+
+/* ---------- 4 没说出口的 ---------- */
+.ins{display:flex;flex-direction:column;gap:13px}
+.icard{padding:17px 19px;border:1px solid var(--bd);border-radius:var(--r-md);background:var(--bg-glass);transition:all .5s var(--out)}
+.icard:hover{border-color:var(--bd2);background:var(--bg-glass-2)}
+.icard.taken{opacity:.45;border-color:var(--bd)}
+.iobs{font-size:11px;color:var(--t3);letter-spacing:.1em;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+.iobs::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--core);box-shadow:0 0 8px var(--core-glow)}
+.iinf{font-size:15px;line-height:1.6;margin-bottom:7px}
+.iinf em{font-style:normal;color:var(--gold)}
+.iev{font-size:12px;color:var(--t2);line-height:1.75;margin-bottom:13px}
+.iacts{display:flex;gap:9px;align-items:center}
+.iact{padding:7px 15px;border-radius:var(--r-full);border:1px solid var(--core-soft);color:var(--core);font-size:12px;transition:all .28s}
+.iact:hover{background:var(--core-soft)}
+.iact.ghost{border-color:var(--bd2);color:var(--t3)}
+.iact.ghost:hover{background:var(--bg-glass);color:var(--t2)}
+.idone{font-size:12px;color:var(--core);display:none;align-items:center;gap:6px}
+.icard.taken .iacts{display:none}
+.icard.taken .idone{display:flex}
+
+/* ---------- 5 共度的痕迹 ---------- */
+.tl{position:relative;padding-left:26px}
+.tl::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:1px;background:linear-gradient(180deg,transparent,var(--bd2) 8%,var(--bd2) 92%,transparent)}
+.trow{position:relative;padding:14px 0 14px 4px;border-bottom:1px solid var(--bd)}
+.trow:last-child{border-bottom:none}
+.trow::before{content:"";position:absolute;left:-24px;top:20px;width:9px;height:9px;border-radius:50%;background:var(--bg-base);border:1.5px solid var(--bd2)}
+.trow.mood-hi::before{background:var(--core);border-color:var(--core);box-shadow:0 0 10px var(--core-glow)}
+.trow.mood-lo::before{background:rgba(246,192,98,.5);border-color:rgba(246,192,98,.6)}
+.trow.star::before{background:var(--gold);border-color:var(--gold);box-shadow:0 0 14px var(--gold-glow)}
+.tdate{font-size:11px;color:var(--t3);letter-spacing:.1em;display:flex;align-items:center;gap:9px;margin-bottom:5px}
+.tbadge{font-size:10px;padding:2px 8px;border-radius:var(--r-full);background:var(--gold-soft);color:var(--gold);letter-spacing:.04em}
+.ttext{font-size:13px;line-height:1.7;color:var(--t1)}
+.tmeta{margin-top:6px;font-size:11px;color:var(--t3);display:flex;gap:14px;flex-wrap:wrap}
+.tmeta i{font-style:normal;display:flex;align-items:center;gap:5px}
+.wave{display:inline-flex;align-items:flex-end;gap:1.5px;height:9px}
+.wave b{width:2px;background:var(--core);opacity:.55;border-radius:1px}
+
+/* ---------- 栖光 ---------- */
+.orb{position:fixed;right:26px;bottom:22px;width:104px;height:104px;z-index:40;pointer-events:none}
+.orb-i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.orb-core{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 38% 34%,#fff,var(--core) 62%,rgba(111,214,255,.5));box-shadow:0 0 26px var(--core-glow);animation:orbb 4.4s ease-in-out infinite}
+@keyframes orbb{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.orb-aura{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle,var(--core-glow),transparent 68%);animation:aura 5.6s ease-in-out infinite}
+@keyframes aura{0%,100%{opacity:.5;transform:scale(.94)}50%{opacity:.85;transform:scale(1.04)}}
+.orb-ring{position:absolute;inset:14px;border-radius:50%;border:1.5px solid var(--gold);opacity:calc(var(--urg)*.8);animation:ripple calc(3.6s - var(--urg)*2.3s) var(--out) infinite}
+@keyframes ripple{0%{transform:scale(.7);opacity:0}22%{opacity:calc(var(--urg)*.85)}100%{transform:scale(1.5);opacity:0}}
+.orb-ring2{animation-delay:.9s}
+.bigorb{width:180px;height:180px;position:relative;margin:0 auto}
+.bigorb .orb-core{width:62px;height:62px}
+.bigorb .orb-aura{inset:12px}
+.bigorb .orb-ring{inset:26px;border-width:2px}
+.orb-cap{text-align:center;font-size:11px;color:var(--t3);letter-spacing:.14em;margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div>
+        <div class="brand-t">星澜</div>
+        <div class="brand-s">XINGLAN</div>
+      </div>
+    </div>
+    <button class="nav on" data-v="weather"><span class="mark m-band"><i></i><i></i><i></i></span>一天的天气</button>
+    <button class="nav" data-v="memory"><span class="mark m-star"><i></i><i></i><i></i></span>记忆星图</button>
+    <button class="nav" data-v="ambient"><span class="mark m-ring"></span>沉默的提醒</button>
+    <button class="nav" data-v="insight"><span class="mark m-seed"><i></i><i></i><i></i></span>没说出口的</button>
+    <button class="nav" data-v="trace"><span class="mark m-eye"></span>共度的痕迹</button>
+    <div class="rail-foot">五件小事<br />都不是新按钮<br />而是新的感知方式</div>
+  </aside>
+
+  <main class="panel">
+    <div class="phead">
+      <div class="ptitle" id="pTitle">一天的天气</div>
+      <div class="psub" id="pSub">待办不该是清单，该是今天的密度</div>
+    </div>
+
+    <div class="pbody">
+
+      <!-- 1 -->
+      <section class="view on" data-v="weather">
+        <div class="wx-line" id="wxLine"></div>
+        <div class="band">
+          <div class="bgrid"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="blobs" id="blobs"></div>
+          <div class="nowline" id="nowLine"><span class="nowtag" id="nowTag">此刻</span></div>
+          <div class="dens" id="dens"></div>
+        </div>
+        <div class="hours"><span>06:00</span><span>09:00</span><span>12:00</span><span>15:00</span><span>18:00</span><span>21:00</span><span>24:00</span></div>
+        <div class="wx-legend">
+          <span><i class="dot" style="background:var(--core);box-shadow:0 0 8px var(--core-glow)"></i>还没到</span>
+          <span><i class="dot" style="background:var(--gold);box-shadow:0 0 8px var(--gold-glow)"></i>已经晚了 · 需要你</span>
+          <span><i class="dot" style="background:rgba(240,244,254,.22)"></i>做完了 · 留个痕</span>
+          <span><i class="dot" style="background:var(--core);width:14px;border-radius:2px;height:5px"></i>竖线 = 此刻</span>
+        </div>
+        <div class="why"><b>为什么要这样：</b>列表回答的是"有哪些事"，光带回答的是"今天是什么形状"。同一份 <code>reminders</code> 数据，按 <code>due_ts</code> 铺在一天上，拥挤和空缺会自己浮出来——而这是 12 条清单永远给不了的信息。</div>
+      </section>
+
+      <!-- 2 -->
+      <section class="view" data-v="memory">
+        <div class="sky">
+          <canvas id="sky"></canvas>
+          <div class="sky-lab" style="left:16px;top:14px">亮度 = 新鲜度（30 天半衰）</div>
+          <div class="sky-lab" style="right:16px;top:14px">大小 = 被唤起次数</div>
+          <div class="sky-q" id="skyQ">「你喜欢靠窗的位置」快被忘了 —— 还留着吗？</div>
+        </div>
+        <div class="sky-legend">
+          <span><i class="bar"></i>越亮 = 越新</span>
+          <span><i class="dot" style="background:var(--gold);box-shadow:0 0 8px var(--gold-glow)"></i>濒临遗忘 · 栖光想问你</span>
+          <span><i class="dot" style="background:rgba(240,244,254,.18)"></i>已归档</span>
+        </div>
+        <div class="why"><b>为什么要这样：</b><code>selectMemories</code> 里已经有一个 30 天半衰的新鲜度权重在跑，但没人看得见它。星图做的只是<b>把算法画出来</b>——用户第一次能理解"为什么它记得这条、淡了那条"。记忆因此有了重量和寿命。</div>
+      </section>
+
+      <!-- 3 -->
+      <section class="view" data-v="ambient">
+        <div class="amb">
+          <div>
+            <div class="amb-orb" id="ambOrb">
+              <div class="bigorb">
+                <div class="orb-i"><div class="orb-aura"></div><div class="orb-core"></div><div class="orb-ring"></div><div class="orb-ring orb-ring2"></div></div>
+              </div>
+            </div>
+            <div class="orb-cap" id="orbCap">栖光 · 在场</div>
+          </div>
+          <div class="amb-ctl">
+            <div class="ctl-t">拖动 · 距到期还有</div>
+            <input class="slider" id="urgSlider" type="range" min="0" max="4" step="1" value="0" />
+            <div class="ticks"><span>3h</span><span>1h</span><span>30m</span><span>10m</span><span>逾期</span></div>
+            <div class="state" id="ambState"><b>平静</b>光晕只有呼吸，没有任何催促。</div>
+            <div class="quiet" id="quietBtn"><span class="sw"></span>免打扰时段（22:00 后）</div>
+            <div class="human" id="humanCard">
+              <h4>需要你 · 交水电费</h4>
+              <p>原定今天 11:00，已经过了。要现在处理，还是挪个时间？</p>
+              <div class="hacts">
+                <button class="hact">完成打卡</button>
+                <button class="hact">顺延 1 小时</button>
+                <button class="hact">顺延 1 天</button>
+                <button class="hact ghost">一键问栖光</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="why"><b>为什么要这样：</b>提醒最贵的成本不是算力，是<b>打断</b>。到期前它只在你的余光里变化——光晕边缘泛起暖金，越近越急；真逾期了才升级成卡片进「人的环」。而 <code>detectQuietHours</code> 已经能从你的记忆里读出免打扰时段，那就让涟漪永远只停在涟漪。</div>
+      </section>
+
+      <!-- 4 -->
+      <section class="view" data-v="insight">
+        <div class="ins" id="insList"></div>
+        <div class="why"><b>为什么要这样：</b>顺延一直被当成"用户没做到"，其实它是<b>最诚实的偏好信号</b>。星澜读的不是你说过什么，是你做过什么——这才有"管家"和"记事本"的区别。数据源全是现成的：<code>reminders</code> 的顺延痕迹、<code>checkin_mood</code>、记忆时间戳。</div>
+      </section>
+
+      <!-- 5 -->
+      <section class="view" data-v="trace">
+        <div class="tl" id="tl"></div>
+        <div class="why"><b>为什么要这样：</b>日志是给机器看的，痕迹是给关系看的。这里复用的正是路线图里 <b>P0 trace</b> 要采集的那份数据——只是它不只躺在工程师的调试面板里，也以"我们一起走过的日子"的姿态回到你面前。<b>红线照旧：trace 只读，绝不回灌模型上下文。</b></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<div class="orb"><div class="orb-i"><div class="orb-aura"></div><div class="orb-core"></div><div class="orb-ring"></div><div class="orb-ring orb-ring2"></div></div></div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============ 导航 ============ */
+var META={
+  weather:['一天的天气','待办不该是清单，该是今天的密度'],
+  memory:['记忆星图','让检索算法第一次被看见'],
+  ambient:['沉默的提醒','提醒不是打断，是环境里的一个变化'],
+  insight:['它记得你没说出口的','读你做过什么，而不是你说过什么'],
+  trace:['共度的痕迹','日志是给机器看的，痕迹是给关系看的']
+};
+var navs=document.querySelectorAll('.nav');
+var views=document.querySelectorAll('.view');
+navs.forEach(function(b){
+  b.addEventListener('click',function(){
+    var v=b.getAttribute('data-v');
+    navs.forEach(function(n){n.classList.toggle('on',n===b)});
+    views.forEach(function(s){s.classList.toggle('on',s.getAttribute('data-v')===v)});
+    document.getElementById('pTitle').textContent=META[v][0];
+    document.getElementById('pSub').textContent=META[v][1];
+    if(v==='memory'){requestAnimationFrame(function(){needResize=true})}
+  });
+});
+
+/* ============ 1 一天的天气 ============ */
+var BAND_START=6, BAND_END=24;
+var TASKS=[
+  {h:7.5,t:'晨间拉伸',s:'done'},
+  {h:9.0,t:'周会材料',s:'done'},
+  {h:11.0,t:'交水电费',s:'overdue'},
+  {h:14.0,t:'客户回访',s:'pending',steps:[1,3]},
+  {h:15.5,t:'取快递',s:'pending'},
+  {h:16.0,t:'写周报',s:'pending',steps:[0,2]},
+  {h:19.0,t:'买菜',s:'pending'},
+  {h:21.0,t:'读书 30 分钟',s:'pending'},
+  {h:22.5,t:'今日复盘',s:'pending'}
+];
+var tip=document.getElementById('tip');
+function pctOf(h){return Math.max(0,Math.min(100,(h-BAND_START)/(BAND_END-BAND_START)*100))}
+
+(function buildBand(){
+  var wrap=document.getElementById('blobs');
+  TASKS.forEach(function(k){
+    var d=document.createElement('div');
+    d.className='blob '+(k.s==='overdue'?'gold':k.s==='done'?'done':'');
+    var size=k.s==='done'?46:(k.steps?74:58);
+    d.style.left=pctOf(k.h)+'%';
+    d.style.width=size+'px'; d.style.height=size+'px';
+    d.innerHTML='<div class="halo"></div><div class="pit"></div>';
+    var txt=k.t+(k.steps?'（'+k.steps[0]+'/'+k.steps[1]+' 步）':'');
+    var sub=k.s==='overdue'?'已过 '+fmtH(k.h)+' · 需要你':k.s==='done'?'已完成':fmtH(k.h)+' · 还没到';
+    d.addEventListener('mouseenter',function(e){
+      tip.innerHTML='<div class="tt">'+txt+'</div><div class="ts'+(k.s==='overdue'?' tg':'')+'">'+sub+'</div>';
+      tip.classList.add('on'); moveTip(e);
+    });
+    d.addEventListener('mousemove',moveTip);
+    d.addEventListener('mouseleave',function(){tip.classList.remove('on')});
+    wrap.appendChild(d);
+  });
+  // 密度条
+  var dn=document.getElementById('dens');
+  var N=18, buckets=new Array(N).fill(0);
+  TASKS.forEach(function(k){
+    if(k.s==='done')return;
+    var idx=Math.floor((k.h-BAND_START)/((BAND_END-BAND_START)/N));
+    if(idx>=0&&idx<N)buckets[idx]++;
+  });
+  var mx=Math.max.apply(null,buckets)||1;
+  buckets.forEach(function(c){
+    var i=document.createElement('i');
+    i.style.height=Math.max(2,c/mx*24)+'px';
+    i.style.opacity=c?String(0.35+c/mx*0.65):'0.18';
+    dn.appendChild(i);
+  });
+  // 此刻
+  var now=new Date();
+  var nh=now.getHours()+now.getMinutes()/60;
+  var clamped=Math.max(BAND_START,Math.min(BAND_END,nh));
+  var nl=document.getElementById('nowLine');
+  nl.style.left=pctOf(clamped)+'%';
+  var tag=document.getElementById('nowTag');
+  tag.textContent='此刻 '+pad(now.getHours())+':'+pad(now.getMinutes());
+  if(nh<BAND_START){tag.textContent='此刻 '+pad(now.getHours())+':'+pad(now.getMinutes())+' · 天还没亮';nl.style.left='0%'}
+  var np=pctOf(clamped);
+  if(np>78||nh<BAND_START&&false){tag.style.transform='translateX(-100%)';tag.style.paddingRight='9px'}
+  else if(np<3){tag.style.paddingLeft='9px'}
+  // 一句话天气
+  var overdue=TASKS.filter(function(k){return k.s==='overdue'}).length;
+  var pend=TASKS.filter(function(k){return k.s==='pending'});
+  var seg={morning:0,noon:0,night:0};
+  pend.forEach(function(k){
+    if(k.h<12)seg.morning++; else if(k.h<18)seg.noon++; else seg.night++;
+  });
+  var peak=null,pv=-1;
+  seg&&['morning','noon','night'].forEach(function(s){if(seg[s]>pv){pv=seg[s];peak=s}});
+  var nameMap={morning:'上午',noon:'下午',night:'晚上'};
+  var light=['morning','noon','night'].filter(function(s){return seg[s]===0}).map(function(s){return nameMap[s]});
+  var parts=[];
+  if(light.length)parts.push(light.join('、')+'是空的');
+  if(pv>0)parts.push(nameMap[peak]+'最挤，'+pv+' 件叠在一起');
+  if(overdue)parts.push('<em>另有 '+overdue+' 件已经晚了</em>');
+  document.getElementById('wxLine').innerHTML='今天：'+(parts.join('，')||'没有安排')+'。';
+})();
+function pad(n){return n<10?'0'+n:''+n}
+function fmtH(h){var m=Math.round((h%1)*60);return Math.floor(h)+':'+(m<10?'0'+m:m)}
+function moveTip(e){
+  var x=e.clientX+14,y=e.clientY+14;
+  if(x+240>window.innerWidth)x=e.clientX-244;
+  tip.style.left=x+'px'; tip.style.top=y+'px';
+}
+
+/* ============ 2 记忆星图 ============ */
+var sky=document.getElementById('sky'), ctx=sky.getContext('2d'), needResize=true;
+var W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+function rng(seed){var s=seed;return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff}}
+var CLUSTERS=[{n:'偏好',x:.22,y:.30},{n:'事实',x:.74,y:.26},{n:'计划',x:.28,y:.72},{n:'笔记',x:.73,y:.70}];
+var STARS=[];
+(function seed(){
+  var r=rng(20261020);
+  CLUSTERS.forEach(function(c,ci){
+    for(var i=0;i<11;i++){
+      var ang=r()*Math.PI*2, rad=Math.pow(r(),.7)*86;
+      STARS.push({
+        kind:c.n,
+        x:c.x+Math.cos(ang)*rad/700,
+        y:c.y+Math.sin(ang)*rad/380,
+        age:Math.pow(r(),1.5)*92,
+        recalls:Math.floor(r()*8),
+        ph:r()*Math.PI*2,
+        sp:.00016+r()*.00022
+      });
+    }
+  });
+  STARS.sort(function(a,b){return b.age-a.age});
+  STARS[0].dying=true;
+})();
+function fresh(a){return Math.pow(0.5,a/30)}
+function resize(){
+  var r=sky.getBoundingClientRect();
+  W=r.width;H=r.height;
+  sky.width=Math.round(W*DPR); sky.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  needResize=false;
+}
+var hoverIdx=-1;
+sky.addEventListener('mousemove',function(e){
+  var r=sky.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  var best=-1,bd=18;
+  STARS.forEach(function(s,i){
+    var sx=s.x*W+Math.sin(performance.now()*s.sp+s.ph)*6;
+    var sy=s.y*H+Math.cos(performance.now()*s.sp*0.8+s.ph)*6;
+    var d=Math.hypot(sx-mx,sy-my);
+    if(d<bd){bd=d;best=i}
+  });
+  hoverIdx=best;
+  if(best>=0){
+    var s=STARS[best];
+    var days=Math.round(s.age);
+    tip.innerHTML='<div class="tt">'+s.kind+' · '+(s.dying?'濒临遗忘':'已存 '+days+' 天')+'</div>'+
+      '<div class="ts">新鲜度 '+Math.round(fresh(s.age)*100)+'% · 被唤起 '+s.recalls+' 次</div>';
+    tip.classList.add('on'); moveTip(e);
+  }else{tip.classList.remove('on')}
+});
+sky.addEventListener('mouseleave',function(){hoverIdx=-1;tip.classList.remove('on')});
+
+function frame(t){
+  if(needResize)resize();
+  ctx.clearRect(0,0,W,H);
+  // 星座连线
+  ctx.lineWidth=.5;
+  CLUSTERS.forEach(function(c){
+    var g=STARS.filter(function(s){return s.kind===c.n});
+    for(var i=0;i<g.length;i++)for(var j=i+1;j<g.length;j++){
+      var a=g[i],b=g[j];
+      var ax=a.x*W+Math.sin(t*a.sp+a.ph)*6, ay=a.y*H+Math.cos(t*a.sp*.8+a.ph)*6;
+      var bx=b.x*W+Math.sin(t*b.sp+b.ph)*6, by=b.y*H+Math.cos(t*b.sp*.8+b.ph)*6;
+      var d=Math.hypot(ax-bx,ay-by);
+      if(d<74){
+        ctx.strokeStyle='rgba(111,214,255,'+(0.16*(1-d/74)).toFixed(3)+')';
+        ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+      }
+    }
+  });
+  // 星
+  STARS.forEach(function(s,i){
+    var x=s.x*W+Math.sin(t*s.sp+s.ph)*6;
+    var y=s.y*H+Math.cos(t*s.sp*.8+s.ph)*6;
+    var f=fresh(s.age);
+    var r=1.5+Math.min(s.recalls,7)*.34+f*.9;
+    var a=.18+f*.82;
+    if(i===hoverIdx){r*=1.9;a=1}
+    var g=ctx.createRadialGradient(x,y,0,x,y,r*5.5);
+    var col=s.dying?'246,192,98':'111,214,255';
+    g.addColorStop(0,'rgba('+col+','+(a*.95).toFixed(3)+')');
+    g.addColorStop(.24,'rgba('+col+','+(a*.34).toFixed(3)+')');
+    g.addColorStop(1,'rgba('+col+',0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r*5.5,0,6.2832);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,'+Math.min(1,a+.2).toFixed(3)+')';
+    ctx.beginPath();ctx.arc(x,y,r*.52,0,6.2832);ctx.fill();
+    if(s.dying){
+      var p=.5+.5*Math.sin(t*.0022);
+      ctx.strokeStyle='rgba(246,192,98,'+(.25+p*.5).toFixed(3)+')';
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(x,y,r*3+p*3,0,6.2832);ctx.stroke();
+    }
+  });
+  // 簇名
+  ctx.font='10px -apple-system,"PingFang SC",sans-serif';
+  ctx.fillStyle='rgba(240,244,254,.22)';
+  CLUSTERS.forEach(function(c){ctx.fillText(c.n,c.x*W-8,c.y*H-96)});
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setTimeout(function(){document.getElementById('skyQ').classList.add('on')},1400);
+setTimeout(function(){document.getElementById('skyQ').classList.remove('on')},7400);
+
+/* ============ 3 沉默的提醒 ============ */
+var URG=[
+  {u:0.00,txt:'平静', d:'光晕只有呼吸，没有任何催促。'},
+  {u:0.28,txt:'一丝涟漪', d:'还有一小时。光晕边缘泛起一点暖金，只在余光里。'},
+  {u:0.55,txt:'开始脉动', d:'还有半小时。暖金环缓慢扩散，你看一眼就知道有事。'},
+  {u:0.85,txt:'明显催促', d:'还有十分钟。涟漪更快、更亮，但依然不是弹窗。'},
+  {u:1.00,txt:'升级 · 需要你', d:'已经过了。这时才变成卡片，进入「人的环」等你决定。'}
+];
+var quietOn=false;
+var slider=document.getElementById('urgSlider');
+function applyUrg(){
+  var i=+slider.value, s=URG[i];
+  document.documentElement.style.setProperty('--urg',s.u);
+  var showCard=(i===4&&!quietOn);
+  document.getElementById('humanCard').classList.toggle('on',showCard);
+  document.getElementById('ambOrb').classList.toggle('hot',i>=3);
+  document.getElementById('ambState').innerHTML='<b>'+s.txt+'</b>'+s.d+(quietOn&&i===4?'（免打扰中：只留涟漪，绝不打断。）':'');
+  document.getElementById('orbCap').textContent=quietOn&&i===4?'栖光 · 克制':'栖光 · 在场';
+}
+slider.addEventListener('input',applyUrg);
+document.getElementById('quietBtn').addEventListener('click',function(){
+  quietOn=!quietOn;
+  this.classList.toggle('on',quietOn);
+  applyUrg();
+});
+applyUrg();
+
+/* ============ 4 没说出口的 ============ */
+var INSIGHTS=[
+  {obs:'行为 · 顺延 3 次', inf:'「交水电费」你推了三次，<em>不是忘了，是日子不对</em>。', ev:'它每次都排在上午，而你上午几乎没有完成过任何待办。', a:'挪到每月 5 号？', b:'保持原样'},
+  {obs:'行为 · 连续 6 天', inf:'你习惯在 <em>22:00 以后</em>才整理待办。', ev:'近一周的勾选动作，8 成发生在 22 点之后。白天你从不碰它。', a:'把每日复盘定在 22:30？', b:'不用'},
+  {obs:'行为 · 47 天未动', inf:'「学吉他」建了 47 天，<em>一次都没开始</em>。', ev:'它现在的作用只是每天提醒你一次没做到。', a:'先收进「以后」', b:'留着提醒我'},
+  {obs:'情绪 · 周五 18:00', inf:'周五傍晚你的心情均值最低（<em>3.1 / 5</em>）。', ev:'连续 5 周，周五 18 点后的打卡都在 3 分以下。', a:'那时放一首你常听的？', b:'不用'}
+];
+(function buildIns(){
+  var box=document.getElementById('insList');
+  INSIGHTS.forEach(function(k){
+    var d=document.createElement('div');
+    d.className='icard';
+    d.innerHTML='<div class="iobs">'+k.obs+'</div>'+
+      '<div class="iinf">'+k.inf+'</div>'+
+      '<div class="iev">'+k.ev+'</div>'+
+      '<div class="iacts"><button class="iact">'+k.a+'</button><button class="iact ghost">'+k.b+'</button></div>'+
+      '<div class="idone">已采纳 · 星澜记住了</div>';
+    d.querySelectorAll('.iact')[0].addEventListener('click',function(){d.classList.add('taken')});
+    box.appendChild(d);
+  });
+})();
+
+/* ============ 5 共度的痕迹 ============ */
+var TRACES=[
+  {d:'10 · 14',c:'star',b:'第一次记住你',t:'你说「我喜欢靠窗的位置」，我把它存成了偏好。',m:'心情 4',w:1,song:''},
+  {d:'10 · 15',c:'',t:'帮你把「季度复盘」拆成了 6 步，当天做完了 4 步。',m:'心情 3',w:1,song:'夜的第七章'},
+  {d:'10 · 17',c:'mood-hi',t:'你连着三天打卡都在 4 分以上，我记下了这个状态。',m:'心情 5',w:1,song:'晴天'},
+  {d:'10 · 18',c:'star',b:'第 100 条记忆',t:'关于你的记忆攒到 100 条了。最早的那些我开始慢慢淡忘。',m:'心情 4',w:1,song:''},
+  {d:'10 · 19',c:'mood-lo',t:'周五傍晚你打了 2 分。我没多问，只是把提醒都压后了。',m:'心情 2',w:1,song:''},
+  {d:'10 · 20',c:'',t:'「交水电费」又被顺延了一次。这是第三次——我准备跟你谈谈日子。',m:'心情 3',w:1,song:'稻香'}
+];
+(function buildTl(){
+  var box=document.getElementById('tl');
+  TRACES.forEach(function(k){
+    var d=document.createElement('div');
+    d.className='trow '+(k.c||'');
+    var meta='<i>'+k.m+'</i>';
+    if(k.song){
+      var wv='';
+      for(var i=0;i<9;i++)wv+='<b style="height:'+(3+Math.random()*6).toFixed(1)+'px"></b>';
+      meta+='<i><span class="wave">'+wv+'</span>'+k.song+'</i>';
+    }
+    d.innerHTML='<div class="tdate">'+k.d+(k.b?'<span class="tbadge">'+k.b+'</span>':'')+'</div>'+
+      '<div class="ttext">'+k.t+'</div><div class="tmeta">'+meta+'</div>';
+    box.appendChild(d);
+  });
+})();
+
+window.addEventListener('resize',function(){needResize=true});
+})();
+</script>
+</body>
+</html>

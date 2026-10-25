@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "server": "tsx server/index.ts",
     "eval": "tsx scripts/run-evals.ts",
-    "test": "tsx scripts/due-parse-probe.ts && tsx scripts/chat-stream-probe.ts && tsx scripts/dashboard-logic-probe.ts && tsx scripts/reminder-steps-probe.ts && tsx scripts/recur-probe.ts && tsx scripts/proactive-action-probe.ts && tsx scripts/xinglan-performance-probe.ts && tsx scripts/memory-select-probe.ts && tsx scripts/ui-scroll-probe.ts && tsx scripts/css-hygiene-probe.ts && tsx scripts/clarify-probe.ts",
+    "test": "tsx scripts/due-parse-probe.ts && tsx scripts/chat-stream-probe.ts && tsx scripts/dashboard-logic-probe.ts && tsx scripts/reminder-steps-probe.ts && tsx scripts/recur-probe.ts && tsx scripts/proactive-action-probe.ts && tsx scripts/xinglan-performance-probe.ts && tsx scripts/memory-select-probe.ts && tsx scripts/proactive-probe.ts && tsx scripts/ui-scroll-probe.ts && tsx scripts/css-hygiene-probe.ts && tsx scripts/clarify-probe.ts",
     "test:live": "node scripts/memory-control-probe.mjs && tsx scripts/artifact-version-probe.ts && tsx scripts/memory-merge-probe.ts"
   },
   "dependencies": {

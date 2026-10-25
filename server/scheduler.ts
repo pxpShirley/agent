@@ -55,6 +55,18 @@ function pickBriefMemories(owner: string, max = 2): Array<{ key: string; value: 
   return picked;
 }
 
+/**
+ * F2 生活教练层：挑出用户说过的「愿望/目标」记忆（kind=plan 且语义像理想状态），
+ * 供晨报/周复盘轻轻地带出来，陪他朝理想状态迈一小步。
+ */
+function pickGoals(owner: string, max = 1): Array<{ key: string; value: string }> {
+  const mems = db.getMemories(owner, 100);
+  const goals = mems.filter(
+    (m) => m.kind === 'plan' && /理想状态|目标|想成为|想做|希望|愿望|立志|梦想/.test(m.key + m.value)
+  );
+  return goals.slice(0, max).map((m) => ({ key: m.key, value: m.value }));
+}
+
 /** 解析用户的「免打扰时段」记忆（如"晚上11点后少打扰"）→ 小时窗口；无则返回 null */
 export interface QuietWindow { start: number; end: number }
 export function detectQuietHours(owner: string): QuietWindow | null {
@@ -88,7 +100,104 @@ export function isQuietNow(qh: QuietWindow | null, hour = new Date().getHours())
   return hour >= qh.start || hour <= qh.end; // 跨午夜
 }
 
-function buildMorning(owner: string): { title: string; body: string } {
+// ----------------------------------------------------------------
+// F3 习惯发现（routine discovery）：从真实信号驱动「何时主动」
+// 替代被否的 jiwen 情绪轴方案——生活管家的主动时机来自待办/记忆/习惯的真实规律，
+// 而不是浪漫关系里的思念累积。信号源：用户的周期提醒（每天/每周几）。
+// ----------------------------------------------------------------
+
+export interface RoutineMeta {
+  what: string;
+  freq: 'daily' | 'weekly' | 'monthly';
+  at?: string; // "HH:MM"
+  days?: number[]; // weekly 用，0=周日…6=周六
+  dom?: number; // monthly 用，每月几号
+}
+const ROUTINE_THROTTLE_MS = 7 * 86_400_000; // 同一习惯每 7 天最多主动提醒一次
+
+/** 从用户的周期提醒推导习惯候选（纯读取，无副作用） */
+export function detectRoutines(owner: string): RoutineMeta[] {
+  return db
+    .listReminders(owner, true)
+    .filter((r) => r.recur_rule && r.recur_rule.freq)
+    .map((r) => ({ what: r.body, freq: r.recur_rule!.freq, at: r.recur_rule!.at, days: r.recur_rule!.days, dom: r.recur_rule!.dom }));
+}
+
+function routineSlug(rt: RoutineMeta): string {
+  return `routine:${rt.what}@${rt.freq}@${rt.at || '09:00'}@${(rt.days || []).join('-')}`;
+}
+
+/** 把推导出的习惯持久化为「routine」记忆（按 slug 去重，幂等，返回新增条数） */
+export function syncRoutines(owner: string): number {
+  const existing = new Set(db.getMemories(owner, 200).filter((m) => m.kind === 'routine').map((m) => m.key));
+  let added = 0;
+  for (const rt of detectRoutines(owner)) {
+    const slug = routineSlug(rt);
+    if (existing.has(slug)) continue;
+    db.saveMemory(owner, 'routine', slug, JSON.stringify(rt));
+    existing.add(slug);
+    added++;
+  }
+  return added;
+}
+
+/** 某习惯是否「此刻该提一句」（weekday 命中 + 时间在设定时刻 ±1 小时内）。now 可注入以便测试 */
+export function routineMatchesNow(rt: RoutineMeta, now = new Date()): boolean {
+  const day = now.getDay(); // 0=周日
+  if (rt.freq === 'weekly') {
+    if (!rt.days || !rt.days.includes(day)) return false;
+  } else if (rt.freq === 'monthly') {
+    if (now.getDate() !== (rt.dom ?? -1)) return false;
+  }
+  if (rt.at && /^(\d{1,2}):(\d{2})$/.test(rt.at)) {
+    const h = parseInt(rt.at.split(':')[0], 10);
+    if (Math.abs(now.getHours() - h) > 1) return false;
+  }
+  return true;
+}
+
+/**
+ * 对当前 owner 跑一轮「习惯软提醒」：匹配此刻的习惯 → 生成一张温柔的 routine 卡片。
+ * 节流：每个习惯 7 天内只推一次（用 routine_prompted:<slug> 记忆做标记）。
+ * 返回本次真正推了多少张。tick() 每轮调用；无模型依赖，确定性可测。
+ */
+export function runRoutineCheckins(owner: string, now = new Date()): number {
+  const mems = db.getMemories(owner, 200);
+  const routines = mems.filter((m) => m.kind === 'routine');
+  if (!routines.length) return 0;
+  if (isQuietNow(detectQuietHours(owner), now.getHours())) return 0;
+  let pushed = 0;
+  for (const m of routines) {
+    let meta: RoutineMeta | null = null;
+    try {
+      meta = JSON.parse(m.value);
+    } catch {
+      continue;
+    }
+    if (!meta || !routineMatchesNow(meta, now)) continue;
+    const slug = m.key;
+    const promptedKey = `routine_prompted:${slug}`;
+    const last = mems.find((x) => x.key === promptedKey);
+    if (last && Date.now() - new Date(last.updated_at).getTime() < ROUTINE_THROTTLE_MS) continue;
+    const when = meta.at ? `（大约 ${meta.at}）` : '';
+    db.addProactiveCard({
+      owner,
+      kind: 'routine',
+      title: `习惯提醒：${meta.what}`,
+      body: `你常在这个时候「${meta.what}」${when}。今天要照常进行吗？需要我帮你记一笔，或者顺手做点什么？`,
+      ref_id: slug,
+      actions: [
+        { type: 'ask_agent', label: '一键问栖光', payload: { prompt: `帮我看看「${meta.what}」今天怎么安排` } },
+        { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
+      ],
+    });
+    db.saveMemory(owner, 'note', promptedKey, 'prompted'); // 节流标记
+    pushed++;
+  }
+  return pushed;
+}
+
+export function buildMorning(owner: string): { title: string; body: string } {
   const pending = db.listReminders(owner, false);
   const dueSoon = pending.filter((r) => r.due_ts !== null && r.due_ts <= Date.now() + 2 * 86400000);
   const moods = db.recentMoods(owner, 7);
@@ -116,12 +225,17 @@ function buildMorning(owner: string): { title: string; body: string } {
   for (const mem of mems) {
     lines.push(`· 按你的情况，我记着：${mem.key ? `${mem.key} → ` : ''}${mem.value}`);
   }
+  // F2 生活教练层：把用户说过的愿望/目标轻轻带到晨报里，陪他朝理想状态迈一小步
+  for (const g of pickGoals(owner)) {
+    const v = g.value.length > 30 ? g.value.slice(0, 30) + '…' : g.value;
+    lines.push(`· 你说过想「${v}」——今天要不要先迈出最小的一步？`);
+  }
   if (fb) lines.push(`· ${fb}`);
   lines.push('今天想让我帮你做点什么？规划、提醒、陪聊，都可以开口。');
   return { title: '今日晨报', body: lines.join('\n') };
 }
 
-function buildWeekly(owner: string): { title: string; body: string } {
+export function buildWeekly(owner: string): { title: string; body: string } {
   const pending = db.listReminders(owner, false);
   const moods = db.recentMoods(owner, 7);
   const avg = moods.length ? moods.reduce((s, m) => s + m.level, 0) / moods.length : null;
@@ -134,6 +248,11 @@ function buildWeekly(owner: string): { title: string; body: string } {
   lines.push(`· 我们已经一起攒下 ${memories.length} 条关于你的记忆`);
   for (const mem of mems) {
     lines.push(`· 你之前提过：${mem.key ? `${mem.key} → ` : ''}${mem.value}`);
+  }
+  // F2 生活教练层：周复盘里也回望一下理想状态，给一句推进建议
+  for (const g of pickGoals(owner)) {
+    const v = g.value.length > 30 ? g.value.slice(0, 30) + '…' : g.value;
+    lines.push(`· 关于你提过的「${v}」——这周有没有往前挪一点点？没的话，下周咱们从最小的一步开始。`);
   }
   if (fb) lines.push(`· ${fb}`);
   lines.push('新的一周，想先搞定哪件事？我可以帮你把它拆开。');
@@ -263,6 +382,9 @@ async function tick(): Promise<void> {
       ];
       db.addProactiveCard({ owner, kind: 'weekly', title: c.title, body: c.body, actions });
     }
+    // 4) F3 习惯发现与软提醒：从周期提醒推导习惯 → 在匹配时刻温柔提一句（7 天节流，免打扰时段跳过）
+    syncRoutines(owner);
+    runRoutineCheckins(owner);
   }
 }
 

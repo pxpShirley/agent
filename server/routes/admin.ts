@@ -7,6 +7,7 @@ import { ADMIN_TOKEN } from '../adminAuth.js';
 import * as db from '../db.js';
 import { notifyChanged } from '../realtime.js';
 import { ctrlOwner, serializeMessage } from './shared.js';
+import { exportMemoryMarkdown } from '../memory.js';
 
 export function registerAdmin(app: Express): void {
 app.get('/api/admin/stats', (req, res) => {
@@ -35,6 +36,14 @@ app.get('/api/admin/conversations/:id', (req, res) => {
 // 记忆治理（运营侧，跨用户全量）：呈现 agent 真正写入的记忆/待办/心情
 app.get('/api/admin/memories', (_req, res) => {
   res.json({ memories: db.listAllMemories() });
+});
+
+// P1（2026-10-24）记忆可检视导出：按 kind 分组渲染 Markdown，等价于 OpenClaw 的纯文件可读记忆。
+// 运营/调试可一眼看清管家记住了关于用户的什么；?owner= 指定用户，缺省 guest。
+app.get('/api/admin/memory/export', (req, res) => {
+  const owner = (req.query.owner as string) || 'guest';
+  const rows = db.getMemories(owner, 500);
+  res.type('text/markdown').send(exportMemoryMarkdown(rows));
 });
 app.get('/api/admin/reminders', (_req, res) => {
   res.json({ reminders: db.listAllReminders() });

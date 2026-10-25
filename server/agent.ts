@@ -62,6 +62,52 @@ export interface AgentTurnOptions {
 }
 
 /**
+ * F1 自动写 experience（episodic 记忆）——借 Hindsight「经历」桶。
+ * 判定「这是用户在讲自己的事」的启发式：第一人称 + 时间/事件标记 + 够长。
+ * 真实模型路径靠 save_memory(kind:'experience') 工具（已在 registry 放开枚举）；
+ * 这里是演示/规则引擎路径的确定性捕获，保证无模型也能验证行为。
+ */
+function isPersonalNarrative(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 10) return false;
+  // 这些另有专门分支（设提醒/查资料/情绪陪伴），不算「叙事」
+  if (/(提醒|记一下|帮我设|查一下|搜索|怎么|为什么|什么是|帮我看看)/.test(t)) return false;
+  const first = /(我|我们|俺)/.test(t);
+  const event = /(今天|昨天|前天|上周|这周|那次|上次|前一阵|最近|刚刚|刚才|早上|中午|晚上|下午|凌晨|周末|今早|今晚|去年|今年|上月|前年)/.test(t);
+  const story = /(了|过|和|跟|被|给|做|说|发生|遇到|看到|觉得|发现|去|回)/.test(t);
+  return first && (event || story);
+}
+/** 归一化出稳定的经历键（按话题去重，避免同一件事被存成 10 份） */
+function narrativeKey(text: string): string {
+  const t = text
+    .replace(/^(我|今天|昨天|那天|上次|最近|刚才|刚刚|我们|俺)\s*/, '')
+    .replace(/[，。、！？!?~～\s]/g, '')
+    .trim();
+  return t.slice(0, 14) || '经历';
+}
+/** 确定性写一条经历记忆（saveMemory 按 key 去重：同话题刷新，不同话题并存） */
+function saveExperienceIfNew(owner: string, text: string): void {
+  safeDb('save_memory', () => db.saveMemory(owner, 'experience', '经历·' + narrativeKey(text), text.trim()));
+}
+
+/**
+ * F2 生活教练层（现状→理想状态）——借 LifeOS 定位。
+ * 捕获用户明确表达的愿望/目标，存为 plan 记忆，晨报里陪他朝它迈一小步。
+ */
+function isAspiration(text: string): boolean {
+  // 排除信息检索意图：含「查/搜索/新闻/怎么…」的是去查资料，不是立愿望，别误判成目标
+  if (/(查|搜索|搜一下|新闻|天气|股价|攻略|政策|百科|报价|多少钱|怎么走|怎么做|怎么用)/.test(text)) return false;
+  return /(我想(要|成为|去|学|瘦|早点|戒|坚持|每天|变得|能)|我希望|我的目标|我的愿望|我打算|我计划(去|做)|我立志|希望自己|想变成|想成为|我梦想)/.test(text);
+}
+function goalKey(text: string): string {
+  const t = text
+    .replace(/^(我想|我希望|我的目标|我的愿望|我打算|我计划|我立志|希望自己|我梦想)\s*/, '')
+    .replace(/[，。、！？!?~～\s]/g, '')
+    .trim();
+  return '理想状态·' + (t.slice(0, 12) || '理想');
+}
+
+/**
  * 组装注入提示词的记忆区块。
  *
  * 2026-10-08 重构：原来是「取最近 12 条 + 每条截断 160 字符」——条数是常数，
@@ -92,6 +138,8 @@ export function buildSystemPrompt(memoryContext: string, capabilities: string[])
 
 # 你的能力（通过工具调用完成，不要凭空编造）
 - 记住关于用户的事（核心职责）：用户透露偏好/习惯/计划/事实或说「记住」时，先调 save_memory 存下；recall_memory 在需要回看时调用
+  - 用户**叙述一段经历/发生的事**（出现「今天…」「上次…」「那次…」这类第一人称叙事）时，用 kind:'experience' 存下，让你以后能接住「上次你说过…」，而不只是记冷冰冰的事实
+  - 用户**表达愿望/目标**（「我想…」「我希望…」「我的目标是…」）时，用 kind:'plan'、key 以「理想状态」开头存下——你会在晨报里陪他朝它迈一小步（生活教练层）
 - 管理提醒与日程：set_reminder / get_schedule（空库时直接给方案即可，不必特意去查）
 - 情绪陪伴：用户倾诉时先共情，必要时 checkin_mood 记录
 - 查资料：web_lookup（实时联网检索最新资讯；联网失败会如实告知，不要假装已联网或编造）
@@ -227,6 +275,20 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
     return;
   }
 
+  // 0.5) 生活教练层：捕获愿望/目标（F2）——放在联网检索之前，保证「我想/我希望」优先于「今年」
+  if (isAspiration(text)) {
+    const key = goalKey(text);
+    safeDb('save_memory', () => db.saveMemory(owner, 'plan', key, text.trim()));
+    yield* emitTool('save_memory', { kind: 'plan', key, value: text.trim() });
+    const reply = stamp(
+      `这个想法挺好的，我记下了——你说过想「${text.trim().slice(0, 24)}${text.trim().length > 24 ? '…' : ''}」。咱们不急，先从能迈的一小步开始，需要时我陪你拆开。`
+    );
+    yield { type: 'text', content: reply };
+    recordRun();
+    yield { type: 'done', fullText: reply, intent, toolsUsed: Array.from(new Set(toolsUsed)), fallback: false };
+    return;
+  }
+
   // 1) 联网检索（注意：不要用裸「今天/今日」，避免与「今天好累」等情绪句误触）
   if (/(查一下|查查|搜索|搜一下|新闻|天气|股价|百科|最新|攻略|政策|怎么去|多少钱|价格|报价|2026|今年|怎么走|怎么做|怎么用)/.test(text)) {
     yield* emitTool('web_lookup', { query: text });
@@ -308,6 +370,8 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
     const level = neg ? 2 : 4;
     safeDb('checkin_mood', () => db.addMood(owner, level, text.slice(0, 30)));
     yield* emitTool('checkin_mood', { level, note: text.slice(0, 30) });
+    // F1：情绪倾诉通常就是一段值得记住的经历，顺手记下来（按话题去重）
+    if (isPersonalNarrative(text)) saveExperienceIfNew(owner, text);
     const reply = neg
       ? '听你这么说，感觉你最近确实挺不容易的。先别把自己逼太紧——要不要跟我说说具体发生了什么？或者我帮你把今天该做的事理一理，减轻点负担。'
       : '哇，听你这么说我也跟着开心起来了～这种好状态要留住，要不要记一笔今天值得开心的小事？';
@@ -318,6 +382,8 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
   }
 
   // 5) 兜底闲聊：回看记忆以个性化
+  // F1：没命中上面任何分支、但像在讲自己的事（如「今天项目终于上线了」），记下来当经历
+  if (isPersonalNarrative(text)) saveExperienceIfNew(owner, text);
   const mems = db.getMemories(owner, 8);
   let reply: string;
   if (mems.length) {

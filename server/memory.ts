@@ -50,12 +50,35 @@ export const DEFAULT_MEMORY_BUDGET: MemoryBudget = {
   snippetMax: Number(process.env.MEMORY_SNIPPET_MAX || 160),
 };
 
-/** 类型权重：身份与偏好最值钱，随手记的 note 最不值钱 */
-const KIND_WEIGHT: Record<string, number> = {
+/**
+ * 类型权重：身份与偏好最值钱，随手记的 note 最不值钱。
+ *
+ * P1（2026-10-24）扩展词表——借 Hindsight 的 4 桶记忆分类（World/Experiences/
+ * Observations/Mental models），把"只会存事实"升级为"会存经历与对用户的抽象理解"：
+ *   - experience 经历：某次对话发生了什么、结论是什么（episodic，补上原缺口）
+ *   - observation 观察：模型从交互观察到的（情绪/状态推断）
+ *   - mental      心智模型：对用户的抽象理解（"夜猫子""决策前需要选项"）
+ * 旧 kind（preference/fact/plan/note）权重不变，向后兼容。
+ */
+export const KIND_WEIGHT: Record<string, number> = {
+  mental: 0.95, // 对用户的抽象理解，最值钱
   preference: 1.0,
+  observation: 0.85,
   fact: 0.9,
   plan: 0.6,
+  experience: 0.7, // 经历：近期权重靠 episodic 弱召回补足
   note: 0.4,
+};
+
+/** kind → 中文分组标签（导出视图用） */
+export const KIND_LABEL: Record<string, string> = {
+  mental: '心智模型',
+  preference: '偏好',
+  observation: '观察',
+  fact: '事实',
+  plan: '计划',
+  experience: '经历',
+  note: '随手记',
 };
 
 /**
@@ -107,9 +130,20 @@ export function relevanceOf(r: MemoryRecord, tokens: string[]): number {
 }
 
 /** 综合得分：相关性 0.6 + 新鲜度 0.3 + 类型 0.1 */
-export function scoreMemory(r: MemoryRecord, tokens: string[], nowMs = Date.now()): number {
+export function scoreMemory(
+  r: MemoryRecord,
+  tokens: string[],
+  nowMs = Date.now(),
+  opts: { episodicBoost?: boolean } = {}
+): number {
   const kind = KIND_WEIGHT[String(r.kind || '')] ?? 0.5;
-  return relevanceOf(r, tokens) * 0.6 + freshness(r.updated_at, nowMs) * 0.3 + kind * 0.1;
+  let s = relevanceOf(r, tokens) * 0.6 + freshness(r.updated_at, nowMs) * 0.3 + kind * 0.1;
+  // P1 episodic 弱召回：模糊 query（关键词少）时，给近期 experience 额外加权，
+  // 让管家能说「上次我们聊过 X」。明确关键词时本开关关闭，不破坏相关性优先。
+  if (opts.episodicBoost && r.kind === 'experience') {
+    s += freshness(r.updated_at, nowMs) * 0.12;
+  }
+  return s;
 }
 
 /** 单条记忆格式化为上下文一行（过长截断） */
@@ -117,6 +151,32 @@ export function formatMemoryLine(r: MemoryRecord, snippetMax = DEFAULT_MEMORY_BU
   const v = String(r.value || '').replace(/\s+/g, ' ').trim();
   const text = v.length > snippetMax ? v.slice(0, snippetMax) + '…' : v;
   return `· [${r.kind}] ${r.key}：${text}`;
+}
+
+/**
+ * P1（2026-10-24）记忆可检视导出：按 kind 分组渲染为 Markdown。
+ * 对应 OpenClaw 的「记忆是纯文件、人能直接读」教训——星澜记忆活在 sqlite，
+ * 导出视图让人/调试能一眼看清楚管家到底记住了关于用户的什么。
+ * 纯函数、不落库、可单测。前端/运营后台可拿去渲染或下载。
+ */
+export function exportMemoryMarkdown(rows: MemoryRecord[]): string {
+  const groups: Record<string, MemoryRecord[]> = {};
+  for (const r of rows) {
+    (groups[r.kind] ||= []).push(r);
+  }
+  const order = ['mental', 'preference', 'observation', 'fact', 'plan', 'experience', 'note'];
+  const lines: string[] = ['# 星澜记忆导出', ''];
+  for (const kind of order) {
+    const items = groups[kind];
+    if (!items?.length) continue;
+    lines.push(`## ${KIND_LABEL[kind] || kind}（${items.length}）`);
+    for (const r of items.slice().sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))) {
+      const v = String(r.value || '').replace(/\s+/g, ' ').trim();
+      lines.push(`- **${r.key}**：${v}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n').trimEnd() + '\n';
 }
 
 /**
@@ -133,8 +193,10 @@ export function selectMemories(
   const b: MemoryBudget = { ...DEFAULT_MEMORY_BUDGET, ...budget };
   const tokens = tokenize(query);
   const nowMs = Date.now();
+  // 模糊 query（无 / 极少关键词）→ 开启 episodic 弱召回
+  const vague = tokens.length === 0 || tokens.length <= 1;
   const scored = rows
-    .map((r) => ({ r, s: scoreMemory(r, tokens, nowMs) }))
+    .map((r) => ({ r, s: scoreMemory(r, tokens, nowMs, { episodicBoost: vague }) }))
     .sort((a, b2) => b2.s - a.s);
 
   const picked: MemoryRecord[] = [];

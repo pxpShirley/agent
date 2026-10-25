@@ -17,7 +17,7 @@ import path from 'path';
 const tmp = path.join(os.tmpdir(), `mem-select-${Date.now()}.db`);
 process.env.CHAT_DB_PATH = tmp;
 
-const { tokenize, relevanceOf, scoreMemory, selectMemories, formatMemoryLine, DEFAULT_MEMORY_BUDGET } =
+const { tokenize, relevanceOf, scoreMemory, selectMemories, formatMemoryLine, DEFAULT_MEMORY_BUDGET, KIND_WEIGHT, exportMemoryMarkdown } =
   await import('../server/memory.js');
 const db = await import('../server/db.js');
 const { buildMemoryContext } = await import('../server/agent.js');
@@ -120,6 +120,42 @@ const s2 = db.getLoopStats(50);
 ok('span 写入后可统计', s2.runs >= 1 && s2.avgIterations === 2, JSON.stringify(s2));
 ok('并发轮次被记到', s2.parallelRuns >= 1);
 ok('工具频次可统计', s2.topTools.some((t) => t.name === 'recall_memory'));
+
+console.log('\n[11] P1 新记忆 kind 词表（借 Hindsight 4 桶：事实/经历/观察/心智模型）');
+ok('KIND_WEIGHT 含 experience（经历）', KIND_WEIGHT.experience === 0.7, `→ ${KIND_WEIGHT.experience}`);
+ok('KIND_WEIGHT 含 observation（观察）', KIND_WEIGHT.observation === 0.85, `→ ${KIND_WEIGHT.observation}`);
+ok('KIND_WEIGHT 含 mental（心智模型）', KIND_WEIGHT.mental === 0.95, `→ ${KIND_WEIGHT.mental}`);
+ok('旧 kind 权重向后兼容（preference 仍 1.0）', KIND_WEIGHT.preference === 1.0);
+ok('旧 kind 权重向后兼容（note 仍 0.4）', KIND_WEIGHT.note === 0.4);
+// db.saveMemory 不校验 kind（存任意字符串），新词表即可直接写入
+db.saveMemory('probe-user', 'experience', '换工作', '上次聊过要不要换工作，用户说纠结');
+ok('新 kind 可被 saveMemory 写入', db.getMemories('probe-user', 50).some((m) => m.kind === 'experience'));
+
+console.log('\n[12] P1 episodic 弱召回（模糊 query 时近期 experience 上浮，不破坏相关性优先）');
+const expOld = mem('experience', '换工作', '上次聊过要不要换工作，用户说纠结', 10 * 86_400_000);
+const expNew = mem('experience', '换工作', '上次聊过要不要换工作，用户说纠结', 1 * 86_400_000);
+const noteNew = mem('note', '杂事', '门口快递', 1 * 86_400_000);
+const vaguePick = selectMemories([expOld, expNew, noteNew], '在吗');
+ok('模糊 query 下近期 experience 被召回', vaguePick.some((r) => r.kind === 'experience' && r.key === '换工作'), vaguePick.map((r) => `${r.kind}:${r.key}`).join(','));
+ok('模糊 query 下近期 experience 排在陈旧之前', vaguePick[0]?.kind === 'experience' && vaguePick[0]?.key === '换工作', vaguePick.map((r) => `${r.kind}:${r.key}`).join(','));
+
+const relFact = mem('fact', '换工作', '用户想换工作，行业是互联网', 0); // 相关且新鲜
+const pickRel = selectMemories([relFact, expOld], '换工作进展如何');
+ok('有明确关键词时相关性优先于陈旧 experience', pickRel[0]?.kind === 'fact', pickRel.map((r) => `${r.kind}:${r.key}`).join(','));
+ok('episodic 弱召回未破坏预算/条数约束', pickRel.length <= DEFAULT_MEMORY_BUDGET.maxItems);
+
+console.log('\n[13] P1 记忆可检视导出（OpenClaw 教训：纯文件可读）');
+const md = exportMemoryMarkdown([
+  mem('preference', '作息', '通常 23:30 睡觉'),
+  mem('experience', '换工作', '上次聊过纠结'),
+  mem('fact', '城市', '住在杭州'),
+  mem('mental', '用户画像', '典型夜猫子，决策前需要给选项'),
+]);
+ok('导出含分组标题「偏好」', md.includes('## 偏好'));
+ok('导出含分组标题「经历」', md.includes('## 经历'));
+ok('导出含分组标题「心智模型」', md.includes('## 心智模型'));
+ok('导出含具体记忆内容', md.includes('23:30 睡觉') && md.includes('上次聊过纠结') && md.includes('夜猫子'));
+ok('导出按权重排序（心智模型在偏好前）', md.indexOf('## 心智模型') < md.indexOf('## 偏好'));
 
 try {
   fs.rmSync(tmp, { force: true });

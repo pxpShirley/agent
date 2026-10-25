@@ -83,12 +83,17 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'save_memory',
-    description: '记住关于该用户的一件事（偏好/习惯/计划/约定/关键事实），供以后对话使用。学到新信息时调用。',
+    description:
+      '记住关于该用户的一件事，供以后对话使用。学到新信息时调用。kind 可选：fact(关键事实)/preference(偏好习惯)/plan(计划或理想状态)/note(随手记)/experience(用户亲口叙述的一段经历或发生的事)/observation(对用户的观察)/mental(对用户的抽象理解，如性格画像)。',
     parameters: {
       type: 'object',
       properties: {
-        kind: { type: 'string', description: '记忆类型', enum: ['fact', 'preference', 'plan', 'note'] },
-        key: { type: 'string', description: '简短键名，如「作息」「城市」「本周目标」' },
+        kind: {
+          type: 'string',
+          description: '记忆类型',
+          enum: ['fact', 'preference', 'plan', 'note', 'experience', 'observation', 'mental'],
+        },
+        key: { type: 'string', description: '简短键名，如「作息」「城市」「理想状态·瘦下来」「经历·项目上线」' },
         value: { type: 'string', description: '具体内容' },
       },
       required: ['kind', 'key', 'value'],
