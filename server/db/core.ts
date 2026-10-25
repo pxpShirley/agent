@@ -102,6 +102,7 @@ db.exec(`
     tool_calls_count INTEGER,  -- 本轮工具调用总次数
     parallel_rounds INTEGER,   -- 其中走了并发分支的轮次数
     latency_ms INTEGER,        -- 整轮耗时
+    source TEXT,               -- 'user' 用户对话 | 'proactive' 调度器主动发起（见 db/ops.ts 注释）
     created_at TEXT NOT NULL
   );
 
@@ -187,6 +188,17 @@ ensureColumn('agent_runs', 'iterations', 'iterations INTEGER');
 ensureColumn('agent_runs', 'tool_calls_count', 'tool_calls_count INTEGER');
 ensureColumn('agent_runs', 'parallel_rounds', 'parallel_rounds INTEGER');
 ensureColumn('agent_runs', 'latency_ms', 'latency_ms INTEGER');
+// 区分「用户说话」与「星澜主动开口」：没有它就无法统计主动服务的真实触发次数
+ensureColumn('agent_runs', 'source', 'source TEXT');
+// 回填：加列之前的旧 run 没有 source。调度器发起的 run 一律用 `sched-` 前缀
+// （见 scheduler.ts），据此区分；其余视为用户对话。
+// 不回填的话，历史数据里主动服务的次数会被全部算成「用户说话」，统计直接失真。
+try {
+  db.exec(`UPDATE agent_runs SET source = 'proactive' WHERE source IS NULL AND session_id LIKE 'sched-%'`);
+  db.exec(`UPDATE agent_runs SET source = 'user' WHERE source IS NULL`);
+} catch {
+  /* 回填失败不影响启动，只是历史数据的来源标注缺失 */
+}
 
 // ============================================================
 // 类型

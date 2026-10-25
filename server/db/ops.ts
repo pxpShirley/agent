@@ -39,6 +39,12 @@ export interface AgentRunRecord {
   parallel_rounds: number | null;
   /** 整轮耗时（ms） */
   latency_ms: number | null;
+  /**
+   * 这次 run 是谁发起的：'user'（用户说话触发的对话）| 'proactive'（调度器主动发起）。
+   * 没有它，trace 视图里「用户问了一句」和「星澜自己开口」看起来一模一样，
+   * 也就没法回答「主动服务到底触发了几次」——可观测性必须能区分来源。
+   */
+  source: string | null;
   created_at: string;
 }
 
@@ -55,11 +61,13 @@ export function addAgentRun(run: Partial<AgentRunRecord> & { id?: string }): Age
     tool_calls_count: run.tool_calls_count ?? null,
     parallel_rounds: run.parallel_rounds ?? null,
     latency_ms: run.latency_ms ?? null,
+    // 不传即视为用户对话：只有调度器会显式传 'proactive'
+    source: run.source ?? 'user',
     created_at: now(),
   };
   db.prepare(
-    `INSERT INTO agent_runs (id,session_id,prompt,intent,tools_used,outcome,model,iterations,tool_calls_count,parallel_rounds,latency_ms,created_at)
-     VALUES (@id,@session_id,@prompt,@intent,@tools_used,@outcome,@model,@iterations,@tool_calls_count,@parallel_rounds,@latency_ms,@created_at)`
+    `INSERT INTO agent_runs (id,session_id,prompt,intent,tools_used,outcome,model,iterations,tool_calls_count,parallel_rounds,latency_ms,source,created_at)
+     VALUES (@id,@session_id,@prompt,@intent,@tools_used,@outcome,@model,@iterations,@tool_calls_count,@parallel_rounds,@latency_ms,@source,@created_at)`
   ).run(row);
   return row;
 }

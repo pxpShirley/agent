@@ -13,6 +13,8 @@ import { runBailianAgentTurn } from './llm/bailian.js';
 import { isCompatEngineConfigured } from './settings.js';
 import { notifyChanged } from './realtime.js';
 import type { ReminderRecord } from './db.js';
+import { randomUUID } from 'crypto';
+import { summarizeText } from './trace.js';
 
 /** 真实大模型是否可用（CodeBuddy SDK 分支已于 2026-10-06 移除） */
 function engineConfigured(): boolean {
@@ -277,11 +279,13 @@ function buildReminderCard(r: ReminderRecord): { title: string; body: string } {
 }
 
 // 优先用 agent 生成，失败回退模板
+// viaAgent：本段内容到底是模型写的还是模板写的。没有它就没法发现
+// 「走模型时 F2 的愿望根本没进 prompt」这类只在一条路径上出现的缺陷。
 async function maybeAgent(
   owner: string,
   kind: 'morning' | 'weekly',
   fallback: () => { title: string; body: string }
-): Promise<{ title: string; body: string }> {
+): Promise<{ title: string; body: string; viaAgent: boolean }> {
   const base = fallback();
   if (process.env.AGENT_BRIEFING === '1' && engineConfigured()) {
     try {
@@ -296,16 +300,49 @@ async function maybeAgent(
         customerName: owner,
         intent: 'other',
         omitTools: ['web_lookup'], // 晨报/复盘只基于库内记忆，不联网
+        // 主动发起的 run：让 trace 视图能把「星澜自己开口」和「用户说话」分开
+        source: 'proactive',
       });
       for await (const ev of gen) {
         if (ev.type === 'text') text += ev.content;
       }
-      if (text.trim()) return { title: base.title, body: text.trim() };
+      if (text.trim()) return { title: base.title, body: text.trim(), viaAgent: true };
     } catch {
       /* 回退模板 */
     }
   }
-  return base;
+  return { ...base, viaAgent: false };
+}
+
+/**
+ * 主动服务决策级观测：把「这一刻星澜决定做什么」落成一条可回放的 run。
+ *
+ * 为什么必须有它：F2（生活教练层）与 F3（习惯发现）是**纯规则驱动**的，默认
+ * 根本不调用模型，所以对话引擎的 agent_spans 里压根不会出现它们——主动服务
+ * 这一整半一直在观测盲区里。没有这段代码，「F2/F3 到底触发了几次」只能靠猜。
+ *
+ * 只在真产生了主动动作时才写库：调度器每分钟 tick 一次，若把「这次什么都没做」
+ * 也记下来，trace 会被噪音淹没，真正触发的那几次反而看不见了。
+ *
+ * 红线（同 MEMORY.md §九）：只写库，绝不回灌模型上下文。
+ */
+function recordProactiveRun(owner: string, decisions: db.SpanInput[], note: string): void {
+  if (!decisions.length) return;
+  try {
+    const runId = randomUUID();
+    db.addAgentRun({
+      id: runId,
+      session_id: `sched-${owner}`,
+      prompt: note,
+      intent: 'proactive',
+      model: 'scheduler',
+      outcome: `${decisions.length} 个主动决策`,
+      source: 'proactive',
+    });
+    db.addAgentSpans(runId, decisions);
+  } catch {
+    /* 观测失败绝不能影响主动服务本身 */
+  }
 }
 
 /**
@@ -335,13 +372,16 @@ function activeOwners(): string[] {
   return scored.map((x) => x.owner);
 }
 
-async function tick(): Promise<void> {
+/** 导出是为了让探针能真实驱动一次调度（否则 sched 的 run 只能靠等定时器，无法回归） */
+export async function tick(): Promise<void> {
   const owners = activeOwners();
   const hour = new Date().getHours();
   const day = new Date().getDay(); // 5 = 周五
   for (const owner of owners) {
     // 免打扰时段：跳过晨报/周复盘等非紧急主动推送（到期提醒是用户自己设的硬截止，仍照常）
     const quiet = isQuietNow(detectQuietHours(owner));
+    // 本轮主动决策收集器：非空才落一条 run（见 recordProactiveRun 注释）
+    const decisions: db.SpanInput[] = [];
     // 1) 到期提醒
     for (const r of db.listDueReminders(owner)) {
       if (!db.proactiveCardExists(owner, 'reminder_due', r.id)) {
@@ -362,6 +402,7 @@ async function tick(): Promise<void> {
           due_at: r.due_at,
           actions,
         });
+        decisions.push({ phase: 'intent', text: summarizeText(`到期提醒卡片 · ${r.body}（${r.due_at || '未设时间'}）`) });
       }
     }
     // 2) 每日晨报（6 点后、当天未生成、且非免打扰时段）
@@ -372,6 +413,18 @@ async function tick(): Promise<void> {
         { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
       ];
       db.addProactiveCard({ owner, kind: 'morning', title: c.title, body: c.body, actions });
+      // F2 生活教练层：候选愿望挑到了几个、以及到底有没有真的进晨报。
+      // ⚠️ 走模型时 maybeAgent 的 prompt 里没有 goals，F2 此路不生效——把这点写进
+      //    trace，缺陷就不会一直躲在「晨报看着挺正常」的假象背后。
+      const goals = pickGoals(owner);
+      decisions.push({
+        phase: 'intent',
+        text: summarizeText(
+          `晨报已生成 · 路径=${c.viaAgent ? '模型' : '模板'} · F2愿望候选=${goals.length}` +
+            (goals.length ? `（${goals[0].value.slice(0, 20)}）` : '') +
+            (c.viaAgent ? ' · ⚠️模型路径 prompt 未注入 goals，F2 此路不生效' : '')
+        ),
+      });
     }
     // 3) 每周复盘（周五 18 点后、本周未生成、且非免打扰时段）
     if (!quiet && day === 5 && hour >= 18 && !db.proactiveCardExistsSince(owner, 'weekly', startOfWeekIso())) {
@@ -381,10 +434,33 @@ async function tick(): Promise<void> {
         { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
       ];
       db.addProactiveCard({ owner, kind: 'weekly', title: c.title, body: c.body, actions });
+      const goals = pickGoals(owner);
+      decisions.push({
+        phase: 'intent',
+        text: summarizeText(
+          `周复盘已生成 · 路径=${c.viaAgent ? '模型' : '模板'} · F2愿望候选=${goals.length}` +
+            (goals.length ? `（${goals[0].value.slice(0, 20)}）` : '') +
+            (c.viaAgent ? ' · ⚠️模型路径 prompt 未注入 goals，F2 此路不生效' : '')
+        ),
+      });
     }
     // 4) F3 习惯发现与软提醒：从周期提醒推导习惯 → 在匹配时刻温柔提一句（7 天节流，免打扰时段跳过）
     syncRoutines(owner);
-    runRoutineCheckins(owner);
+    const routinePushed = runRoutineCheckins(owner);
+    // F3 是纯规则、零模型调用，trace 里唯一能看到它的地方就是这条 span。
+    // ⚠️ 必须只在真推送了才记：调度每分钟 tick，无条件记会让「推送 0 条」的
+    //    span 每分钟刷一条，把真正触发的那几次彻底淹掉（正是 recordProactiveRun 注释里说的噪音）。
+    if (routinePushed > 0) {
+      decisions.push({
+        phase: 'intent',
+        text: summarizeText(`F3 习惯发现 · 本次推送 ${routinePushed} 条`),
+      });
+    }
+    recordProactiveRun(
+      owner,
+      decisions,
+      `调度 tick · owner=${owner} · hour=${hour} · quiet=${quiet ? '是' : '否'}`
+    );
   }
 }
 

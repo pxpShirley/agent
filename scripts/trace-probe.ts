@@ -7,6 +7,12 @@
  *   3) getRunTrace：未知 runId 返回空数组（不报错）
  *   4) SpanCollector：flush(runId) 落库；flush('') 静默丢弃
  *   5) 端到端：驱动一次 Mock 对话轮，验证 run 行 + 有序 span 真实落库
+ *   6) agent_runs.source 列：默认 'user'、显式 'proactive' 都能落地
+ *   7) 端到端：驱动一次真实调度 tick，验证主动服务从盲区变成可回放的 run
+ *
+ * 组 7 的意义：F2（生活教练层）与 F3（习惯发现）是纯规则驱动、默认零模型调用，
+ * 对话引擎的 span 里根本不会出现它们。没有这组断言，「主动服务到底触发了没」
+ * 就没有任何回归保护——改坏了也没人知道。
  *
  * 红线自检：本探针只读/只写临时库，绝不把任何 span 回灌模型上下文。
  *
@@ -23,6 +29,7 @@ process.env.CHAT_DB_PATH = tmp;
 const db = await import('../server/db.js');
 const { SpanCollector } = await import('../server/trace.js');
 const { runMockAgentTurn } = await import('../server/agent.js');
+const { tick } = await import('../server/scheduler.js');
 
 let pass = 0;
 let fail = 0;
@@ -102,6 +109,33 @@ try {
     ok('trace 含 think（分支判定）', trace.some((s) => s.phase === 'think'));
     ok('trace 含 tool_call(set_reminder)', trace.some((s) => s.phase === 'tool_call' && s.tool === 'set_reminder'));
     ok('trace 按 seq 有序', trace.every((s, i) => s.seq === i + 1));
+  }
+
+  console.log('\n[trace-probe] 6) agent_runs.source 区分对话 / 主动');
+  const rUser = uuid();
+  db.addAgentRun({ id: rUser, prompt: '用户说话', intent: 'other', model: 'probe' });
+  const rPro = uuid();
+  db.addAgentRun({ id: rPro, prompt: '调度 tick', intent: 'proactive', model: 'scheduler', source: 'proactive' });
+  ok('不传 source 默认 user', db.getAgentRunById(rUser)?.source === 'user', `got ${db.getAgentRunById(rUser)?.source}`);
+  ok('传 source=proactive 落地', db.getAgentRunById(rPro)?.source === 'proactive', `got ${db.getAgentRunById(rPro)?.source}`);
+
+  console.log('\n[trace-probe] 7) 端到端：驱动一次真实调度 tick');
+  const schedOwner = 'probe-sched-owner';
+  // seed 必须让 activeOwners 选得中：有 session（distinctOwners）+ 有记忆或待办（score>0）
+  db.createSession({ id: 'probe-sched-session', title: 'probe', model: 'probe', customer_name: schedOwner });
+  db.saveMemory(schedOwner, 'plan', '目标', '希望成为一个更自律的人'); // 同时是 F2 愿望候选
+  // 已到期的提醒：到期提醒不受免打扰影响，保证本轮一定有决策落库（否则断言会飘）
+  db.addReminder(schedOwner, '探针到期项', new Date(Date.now() - 60_000).toISOString());
+  await tick();
+  const proactiveRuns = db.getAgentRuns(50).filter((r) => r.source === 'proactive');
+  ok('产生了 proactive run', proactiveRuns.length >= 1, `runs=${proactiveRuns.length}`);
+  if (proactiveRuns.length) {
+    const pr = proactiveRuns[0];
+    ok('run 标记 model=scheduler', pr.model === 'scheduler', `got ${pr.model}`);
+    const ptrace = db.getRunTrace(pr.id);
+    ok('主动决策 span 已落库', ptrace.length >= 1, `spans=${ptrace.length}`);
+    ok('span 含到期提醒决策', ptrace.some((s) => (s.text || '').includes('到期提醒')));
+    ok('span 按 seq 有序', ptrace.every((s, i) => s.seq === i + 1));
   }
 
   console.log(`\n[trace-probe] 结果：${pass} 通过 / ${fail} 失败`);

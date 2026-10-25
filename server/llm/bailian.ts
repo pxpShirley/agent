@@ -378,6 +378,8 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
         tool_calls_count: span.toolCalls,
         parallel_rounds: span.parallelRounds,
         latency_ms: Date.now() - startedAt,
+        // 调度器生成晨报/复盘时传 'proactive'，其余默认 'user'
+        source: opts.source ?? 'user',
       });
       // span 与主 run 同 id 关联，flush 后即可在 trace 视图按 run_id 回放
       collector?.flush(runId);

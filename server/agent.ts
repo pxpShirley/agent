@@ -61,6 +61,12 @@ export interface AgentTurnOptions {
   maxIter?: number;
   /** 子 Agent 工具集裁剪（编排层让 Executor 不复用联网工具时使用） */
   omitTools?: string[];
+  /**
+   * 这次 run 是谁发起的：'user'（默认，用户说话）| 'proactive'（调度器主动开口）。
+   * 调度器生成晨报/复盘时传 'proactive'——否则在 trace 里「用户问了一句」和
+   * 「星澜自己开口」长得一模一样，主动服务的触发次数永远统计不出来。
+   */
+  source?: string;
 }
 
 /**

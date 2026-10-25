@@ -67,6 +67,13 @@
   }
   .run-item .meta { color: var(--muted); font-size: 11px; display: flex; gap: 10px; flex-wrap: wrap; }
   .run-item .meta b { color: var(--core); font-weight: 600; }
+  /* 来源徽标：只标「主动」——用户对话是默认，标出来是噪音；
+     主动发起的 run（调度器）才是必须先看见的那类 */
+  .src {
+    font-size: 10px; padding: 1px 7px; border-radius: 999px; letter-spacing: .5px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .src.proactive { border-color: var(--purple); color: var(--purple); }
   .empty { color: var(--muted); padding: 24px 16px; font-size: 13px; }
   /* 右：trace 时间线 */
   .trace { flex: 1; overflow-y: auto; padding: 0 0 40px; }
@@ -114,13 +121,13 @@
 </head>
 <body>
   <header>
-    <h1>星澜 · 对话轮回放</h1>
-    <span class="sub">只读 trace 视图 — 还原每次轮的工具调用 / 思考 / 人在环</span>
+    <h1>星澜 · 运行回放</h1>
+    <span class="sub">只读 trace 视图 — 还原每轮的工具调用 / 思考 / 人在环 / 主动决策</span>
     <span class="badge">READ-ONLY</span>
   </header>
   <main>
     <section class="runs">
-      <h2>最近的对话轮</h2>
+      <h2>最近的运行</h2>
       <div id="runList"><div class="empty">加载中…</div></div>
     </section>
     <section class="trace">
@@ -174,6 +181,7 @@
         el.innerHTML =
           '<div class="prompt">' + esc(prompt) + '</div>' +
           '<div class="meta">' +
+            (r.source === 'proactive' ? '<span class="src proactive">主动</span>' : '') +
             '<span><b>' + esc(r.model || '?') + '</b></span>' +
             '<span>intent: ' + esc(r.intent || '-') + '</span>' +
             '<span>轮次 ' + its + '</span>' +
@@ -211,6 +219,7 @@
     html += '<div class="run-head">';
     html += '<div class="fullprompt">「' + esc(run.prompt || '') + '」</div>';
     html += '<div class="row">';
+    html += '<span>来源 <b>' + (run.source === 'proactive' ? '主动（调度器）' : '用户对话') + '</b></span>';
     html += '<span>模型 <b>' + esc(run.model || '-') + '</b></span>';
     html += '<span>意图 <b>' + esc(run.intent || '-') + '</b></span>';
     html += '<span>轮次 <b>' + esc(run.iterations != null ? run.iterations : '-') + '</b></span>';
