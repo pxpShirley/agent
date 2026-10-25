@@ -115,6 +115,25 @@ db.exec(`
   );
 `);
 
+// 回放级 trace（P0·2026-10-25）：把一次对话轮拆成有序 span 落库，
+// 让「主动时机是否真触发 / 模型每轮到底想了什么 / 哪些工具被调」可只读回放，不回灌模型。
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agent_spans (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,          -- 关联 agent_runs.id
+    seq INTEGER NOT NULL,          -- 同一次 run 内的发生顺序（1,2,3…）
+    phase TEXT NOT NULL,           -- think | tool_call | tool_result | ask_user | error | intent
+    tool TEXT,                     -- tool_call / tool_result 阶段的工具名
+    args_json TEXT,                -- tool_call 的入参摘要（JSON 文本，已截断）
+    result_json TEXT,              -- tool_result 的返回摘要（文本，已截断）
+    text TEXT,                     -- think / ask_user / error / intent 的可见文本（已截断）
+    tokens INTEGER,                -- 预留：该 span 估算 token（当前未使用）
+    ms INTEGER,                    -- 预留：该 span 耗时（当前未使用）
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_spans_run ON agent_spans(run_id, seq);
+`);
+
 // 人在环：待用户确认的高风险动作（ask_user 闭环）
 db.exec(`
   CREATE TABLE IF NOT EXISTS pending_questions (

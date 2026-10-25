@@ -20,11 +20,15 @@ import { syncReminder } from '../actions/outbound.js';
 import { humanizeRecur, type RecurRule } from '../recur.js';
 import { setMusicAction } from '../music.js';
 import { selectMemories, formatMemoryLine } from '../memory.js';
+import { SpanCollector, summarizeJson, summarizeText } from '../trace.js';
 
 export interface ToolContext {
   owner: string;
   sessionId: string;
   intent: IntentCode;
+  /** 回放级 trace 采集器（P0·2026-10-25）：存在时，execTool 会自动把 tool_call / tool_result 记成 span。
+   *  不存在则零侵入——所有既有调用点（未传 trace）行为不变。 */
+  trace?: SpanCollector;
 }
 
 export interface ToolArg {
@@ -508,17 +512,23 @@ export function activeToolDefs(owner?: string): Array<Pick<Tool, 'name' | 'descr
 export async function execTool(name: string, args: Record<string, any>, ctx: ToolContext): Promise<string> {
   const tool = BY_NAME.get(name);
   if (!tool) return `未知工具：${name}`;
+  const trace = ctx.trace;
+  // 回放级 trace（P0）：进入即记一条 tool_call（入参摘要），让「模型到底调了什么工具」可回放
+  if (trace) trace.push({ phase: 'tool_call', tool: name, args_json: summarizeJson(args) });
+  let result: string;
   try {
     // 超时必须包住「原始 promise」，不能等 run() 已经 resolve 了再套——那样等于没超时
-    const result = await withRetry(
+    result = await withRetry(
       name,
       () => withTimeout(Promise.resolve(tool.run(args, ctx)), tool.timeoutMs ?? 15000, name),
       tool.retries ?? 2
     );
-    return result;
   } catch (e: any) {
-    return `工具执行出错：${e?.message || e}`;
+    result = `工具执行出错：${e?.message || e}`;
   }
+  // 离开即记一条 tool_result（返回摘要），成对出现才能还原一次工具调用的全貌
+  if (trace) trace.push({ phase: 'tool_result', tool: name, result_json: summarizeText(result) });
+  return result;
 }
 
 /**

@@ -18,6 +18,8 @@ import type { ToolContext } from '../tools/registry.js';
 import { buildSystemPrompt, buildMemoryContext, MAX_AGENT_ITERATIONS } from '../agent.js';
 import { guardBareQuestion, couldBeBareQuestion } from '../clarify.js';
 import type { ClarifyCtx } from '../clarify.js';
+import { SpanCollector, summarizeText } from '../trace.js';
+import { v4 as uuidv4 } from 'uuid';
 import {
   getBailianApiKey,
   getBailianModel,
@@ -354,11 +356,18 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
   const startedAt = Date.now();
   const span = { iterations: 0, toolCalls: 0, parallelRounds: 0 };
 
+  // 回放级 trace（P0·2026-10-25）：一次轮内累积 span，轮末一次性 flush 进 agent_spans。
+  // skipRecord 时不分配 runId、不建采集器，行为与旧版一致（不落任何 trace）。
+  const runId = skipRecord ? '' : uuidv4();
+  const collector = skipRecord ? null : new SpanCollector();
+  if (collector) collector.intent('intent', `intent=${intent} · model=${mdl} · owner=${owner}`);
+
   // 活动流遥测：把本轮 agent 自主动作写入 agent_runs，让指挥舱「活动流」有真实内容
   const recordRun = () => {
     if (skipRecord) return;
     try {
       db.addAgentRun({
+        id: runId,
         session_id: sessionId,
         prompt: String(message || ''),
         intent,
@@ -370,6 +379,8 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
         parallel_rounds: span.parallelRounds,
         latency_ms: Date.now() - startedAt,
       });
+      // span 与主 run 同 id 关联，flush 后即可在 trace 视图按 run_id 回放
+      collector?.flush(runId);
     } catch {
       /* 遥测失败不影响主流程 */
     }
@@ -397,7 +408,7 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
       .slice(-6),
   };
 
-  const ctx: ToolContext = { owner, sessionId, intent };
+  const ctx: ToolContext = { owner, sessionId, intent, trace: collector ?? undefined };
 
   try {
     for (let iter = 0; iter < (maxIter ?? MAX_AGENT_ITERATIONS); iter++) {
@@ -407,10 +418,13 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
       // 但在「还可能是空泛反问」的观察窗内也憋住前几个字，避免空话已经展示给用户才补救。
       // ⚠️ yield 必须在生成器顶层（闭包里不能 yield），所以这里内联，不用 emit 辅助函数。
       let iterText = '';
+      // 本轮模型完整输出（不受「空泛反问」护栏的 held/reset 影响），用于 trace 的 think span
+      let iterFull = '';
       let held = true; // 仍处于「可能空泛反问」的观察窗
       for await (const chunk of streamCompat(provider, messages, toOpenAiTools(toolDefs), ac.signal)) {
         if (chunk.kind === 'text') {
           iterText += chunk.content;
+          iterFull += chunk.content;
           if (!held) {
             fullText += chunk.content; // 已确认不是空泛反问：逐字直通
             yield { type: 'text', content: chunk.content, role };
@@ -425,6 +439,9 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
           toolCalls = chunk.toolCalls;
         }
       }
+
+      // 回放级 trace（P0）：把本轮模型的完整思考/前情提要记成一条 think span
+      if (iterFull.trim()) collector?.think(iterFull);
 
       if (!toolCalls.length) {
         // 最后一轮纯文本：落定判定。仍憋着的字若是空泛反问，用护栏生成的替代回复替换；否则原样吐出。
@@ -516,6 +533,8 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
             action_json: pq.action_json,
             role,
           };
+          // 回放级 trace（P0）：ask_user 不是经 execTool 走的，手动补一条 span
+          if (collector) collector.push({ phase: 'ask_user', text: summarizeText(pq.question) });
           recordRun();
           clearTimeout(timer);
           yield {
@@ -566,6 +585,11 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
   } catch (error: any) {
     const errMsg = error?.message || String(error);
     console.error(`[${provider.name === 'deepseek' ? 'DeepSeek' : 'Bailian'}] 调用失败：`, errMsg);
+    // 回放级 trace（P0）：把异常也记进 span，便于复盘失败轮；同时落主 run 行
+    if (collector) {
+      collector.push({ phase: 'error', text: summarizeText(errMsg) });
+      recordRun();
+    }
     clearTimeout(timer);
     if (!fullText.trim()) {
       yield {

@@ -110,6 +110,77 @@ export function getAgentRuns(limit = 50): AgentRunRecord[] {
   return db.prepare('SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT ?').all(limit) as AgentRunRecord[];
 }
 
+// ============================================================
+// 回放级 trace（P0·2026-10-25）
+// 把一次对话轮拆成有序 span 落库，支持只读回放与 trace 视图。
+// ⚠️ 红线：span 仅入库供观测，任何情况不得回灌模型上下文。
+// ============================================================
+export type SpanPhase = 'think' | 'tool_call' | 'tool_result' | 'ask_user' | 'error' | 'intent';
+
+/** 单个 span 的写入模型（seq 由 addAgentSpans 落库时按 push 顺序自动编号） */
+export interface SpanInput {
+  phase: SpanPhase;
+  /** tool_call / tool_result 阶段的工具名 */
+  tool?: string | null;
+  /** tool_call 入参摘要（JSON 文本，已截断） */
+  args_json?: string | null;
+  /** tool_result 返回摘要（文本，已截断） */
+  result_json?: string | null;
+  /** think / ask_user / error / intent 的可见文本（已截断） */
+  text?: string | null;
+  tokens?: number | null;
+  ms?: number | null;
+}
+
+/** 落库后的完整 span 记录（含 run_id / seq / created_at） */
+export interface AgentSpanRecord extends SpanInput {
+  id: string;
+  run_id: string;
+  seq: number;
+  created_at: string;
+}
+
+/** 批量落库一次 run 的全部 span，seq 按入参顺序从 1 递增；空 runId 或空数组为空操作 */
+export function addAgentSpans(runId: string, spans: SpanInput[]): void {
+  if (!runId || !spans.length) return;
+  const insert = db.prepare(
+    `INSERT INTO agent_spans (id,run_id,seq,phase,tool,args_json,result_json,text,tokens,ms,created_at)
+     VALUES (@id,@run_id,@seq,@phase,@tool,@args_json,@result_json,@text,@tokens,@ms,@created_at)`
+  );
+  const tx = db.transaction(() => {
+    let seq = 1;
+    for (const s of spans) {
+      insert.run({
+        id: uuidv4(),
+        run_id: runId,
+        seq,
+        phase: s.phase,
+        tool: s.tool ?? null,
+        args_json: s.args_json ?? null,
+        result_json: s.result_json ?? null,
+        text: s.text ?? null,
+        tokens: s.tokens ?? null,
+        ms: s.ms ?? null,
+        created_at: now(),
+      });
+      seq++;
+    }
+  });
+  tx();
+}
+
+/** 按发生顺序取回一次 run 的全部 span（回放用），不存在返回空数组 */
+export function getRunTrace(runId: string): AgentSpanRecord[] {
+  return db
+    .prepare('SELECT * FROM agent_spans WHERE run_id = ? ORDER BY seq ASC')
+    .all(runId) as AgentSpanRecord[];
+}
+
+/** 按主键取回一次 run 的元信息（trace 视图要同时展示 run + spans） */
+export function getAgentRunById(id: string): AgentRunRecord | undefined {
+  return db.prepare('SELECT * FROM agent_runs WHERE id = ?').get(id) as AgentRunRecord | undefined;
+}
+
 /** 指挥舱·例外收件箱：尚未处理（pending）的待确认高风险动作 */
 export function getOpenPending(owner?: string): ClientPending[] {
   const base = 'SELECT * FROM pending_questions WHERE status = ?';

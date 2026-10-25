@@ -18,6 +18,8 @@ import type { IntentCode } from './db.js';
 import { webSearch } from './tools/web.js';
 import { syncReminder } from './actions/outbound.js';
 import { selectMemories, formatMemoryLine } from './memory.js';
+import { SpanCollector, summarizeJson, summarizeText } from './trace.js';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 记忆候选池大小：不是注入量，是「参与打分的候选数」。
@@ -223,10 +225,17 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
   const toolsUsed: string[] = [];
   const stamp = (s: string) => s;
 
+  // 回放级 trace（P0·2026-10-25）：演示引擎也累积 span，轮末 flush。
+  // skipRecord 时不分配 runId、不建采集器，与真实路径一致。
+  const runId = opts.skipRecord ? '' : uuidv4();
+  const collector = opts.skipRecord ? null : new SpanCollector();
+
   // 演示模式也写活动流遥测，让指挥舱「活动流」在 mock 下就有真实内容
   const recordRun = () => {
+    if (opts.skipRecord) return;
     try {
       db.addAgentRun({
+        id: runId,
         session_id: sessionId,
         prompt: text,
         intent,
@@ -234,6 +243,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
         outcome: 'handled',
         model: 'mock',
       });
+      collector?.flush(runId);
     } catch {
       /* 遥测失败不影响主流程 */
     }
@@ -241,11 +251,14 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   const emitTool = function* (name: string, input: unknown) {
     toolsUsed.push(name);
+    // 回放级 trace（P0）：规则引擎的「工具调用」也记成 tool_call span（无 tool_result，因为是内联执行）
+    collector?.push({ phase: 'tool_call', tool: name, args_json: summarizeJson(input) });
     yield { type: 'tool' as const, name, input };
   };
 
   // 0) 高风险动作：人在环确认（发消息/转账/下单/删除等，涉及他人/资金/不可逆）
   if (RISKY_ACTION.test(text)) {
+    if (collector) collector.think('命中分支0·高风险动作（人在环确认）');
     const action = text.slice(0, 48);
     const question = `你想让我「${action}」吗？这一步涉及外部操作（联系他人 / 资金 / 不可逆），我需要先跟你确认一下，避免误操作。`;
     const options = ['确认，去办', '先不，取消'];
@@ -264,6 +277,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
     toolsUsed.push('ask_user');
     yield { type: 'text', content: '稍等，这件事我得先跟你确认一下 👇' };
     yield { type: 'ask_user', id: pq.id, question, options, action_json: pq.action_json };
+    if (collector) collector.push({ phase: 'ask_user', text: summarizeText(question) });
     recordRun();
     yield {
       type: 'done',
@@ -277,6 +291,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   // 0.5) 生活教练层：捕获愿望/目标（F2）——放在联网检索之前，保证「我想/我希望」优先于「今年」
   if (isAspiration(text)) {
+    if (collector) collector.think('命中分支0.5·生活教练层（捕获愿望/目标 F2）');
     const key = goalKey(text);
     safeDb('save_memory', () => db.saveMemory(owner, 'plan', key, text.trim()));
     yield* emitTool('save_memory', { kind: 'plan', key, value: text.trim() });
@@ -291,6 +306,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   // 1) 联网检索（注意：不要用裸「今天/今日」，避免与「今天好累」等情绪句误触）
   if (/(查一下|查查|搜索|搜一下|新闻|天气|股价|百科|最新|攻略|政策|怎么去|多少钱|价格|报价|2026|今年|怎么走|怎么做|怎么用)/.test(text)) {
+    if (collector) collector.think('命中分支1·联网检索');
     yield* emitTool('web_lookup', { query: text });
     let reply: string;
     try {
@@ -315,6 +331,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   // 2) 记提醒 / 待办
   if (/(提醒|记一下|帮我设|设个提醒|别忘了|记得|待办|几点|日程|闹钟)/.test(text)) {
+    if (collector) collector.think('命中分支2·记提醒/待办');
     const when =
       text.match(/(?:明[天早晚]|后[天天]|大后[天天]|今[天晚早]|周[一二三四五六日天]|下[周周]|周末|中午|上午|下午|晚上|清晨|傍晚)(?:\s*(?:上午|下午|晚上|中午|清晨|傍晚))?\s*(?:\d+[点:：]\d*|\d+点|\d+:\d+)?|\d+[点:：]\d*|\d+点|\d+:\d+/)?.[0] || '';
     let what = text
@@ -338,6 +355,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   // 3) 记记忆（偏好 / 事实）
   if (/(记住|记着|我喜欢|我习惯|我的偏好|我的城市|我住在|家在|老家|生日|上班|工作|读书|上学|在.*公司)/.test(text)) {
+    if (collector) collector.think('命中分支3·记记忆（偏好/事实）');
     let kind = 'fact';
     let key = '关键信息';
     let value = text.replace(/(请|帮我|记得|记住|记着|把|这个|一下|我)/g, '').trim();
@@ -366,6 +384,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   // 4) 心情陪伴
   if (/(心情|好累|好难过|难过|焦虑|压力大|开心|兴奋|沮丧|情绪低落|烦|丧|难受|不开心)/.test(text)) {
+    if (collector) collector.think('命中分支4·心情陪伴');
     const neg = /(累|难过|焦虑|压力大|沮丧|低落|烦|丧|不开心|难受|崩)/.test(text);
     const level = neg ? 2 : 4;
     safeDb('checkin_mood', () => db.addMood(owner, level, text.slice(0, 30)));
@@ -383,6 +402,7 @@ export async function* runMockAgentTurn(opts: AgentTurnOptions): AsyncGenerator<
 
   // 5) 兜底闲聊：回看记忆以个性化
   // F1：没命中上面任何分支、但像在讲自己的事（如「今天项目终于上线了」），记下来当经历
+  if (collector) collector.think('命中分支5·兜底闲聊（回看记忆）');
   if (isPersonalNarrative(text)) saveExperienceIfNew(owner, text);
   const mems = db.getMemories(owner, 8);
   let reply: string;

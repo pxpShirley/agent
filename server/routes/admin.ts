@@ -8,6 +8,7 @@ import * as db from '../db.js';
 import { notifyChanged } from '../realtime.js';
 import { ctrlOwner, serializeMessage } from './shared.js';
 import { exportMemoryMarkdown } from '../memory.js';
+import { TRACE_VIEWER_HTML } from '../traceViewer.js';
 
 export function registerAdmin(app: Express): void {
 app.get('/api/admin/stats', (req, res) => {
@@ -151,6 +152,20 @@ app.get('/api/admin/runs', (_req, res) => {
 app.get('/api/admin/loop-stats', (req, res) => {
   const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
   res.json(db.getLoopStats(limit));
+});
+
+// 回放级 trace（P0·2026-10-25）：取一次对话轮的 span 序列（按 seq 有序），只读。
+// 用于验证 F2/F3 主动时机是否真触发、模型每轮到底调了什么工具。
+// ⚠️ 红线：该接口只对外暴露观测数据，绝不回灌模型上下文。
+app.get('/api/admin/runs/:id/trace', (req, res) => {
+  const run = db.getAgentRunById(req.params.id);
+  if (!run) return res.status(404).json({ error: '运行记录不存在' });
+  res.json({ run, spans: db.getRunTrace(run.id) });
+});
+
+// 回放查看器页面（自包含只读 HTML）：浏览器直接打开即可回放任意一轮
+app.get('/api/admin/trace', (_req, res) => {
+  res.type('text/html').send(TRACE_VIEWER_HTML);
 });
 
 // 例外收件箱：待人工确认的高风险动作（人在环 ask_user 闭环的待办侧）
