@@ -68,7 +68,12 @@ const future = db.addReminder('t1', '明天交周报', '明天 9 点');
 ok('未来提醒有 due_ts', typeof future.due_ts === 'number', String(future.due_ts));
 ok('原文保留在 due_at', future.due_at === '明天 9 点');
 
-const past = db.addReminder('t1', '昨天该做的事', '10月1日 9 点');
+// ⚠️ 这里必须用**绝对日期**表达「过去」，不要用「10月1日」这类无年份的中文日期：
+// parseDue 对无年份日期会在「距今超过 30 天」时自动判为明年（due.ts:122）。
+// 本探针写于 2026-10-06，当时「10月1日」只过去 5 天所以断言成立；一旦日历翻到
+// 11 月，它就被顺延到 2027，下面 3 条「已到期」断言会集体假失败——典型的时间炸弹。
+// 绝对日期由 Date.parse 直接解析，不受墙上时钟影响。
+const past = db.addReminder('t1', '昨天该做的事', '2020-01-01 09:00');
 ok('过去提醒有 due_ts', typeof past.due_ts === 'number');
 
 const vague = db.addReminder('t1', '最后一天早点睡', '最后一天 22:30');
@@ -82,7 +87,7 @@ ok('未来的那条**不**被判为到期（修复前会误报）', !due.include
 ok('不可解析的那条**不**被判为到期', !due.includes(vague.id));
 
 console.log('\n[4] updateReminder 改时间会重算 due_ts');
-db.updateReminder(future.id, { due_at: '10月1日 8:00' });
+db.updateReminder(future.id, { due_at: '2020-01-01 08:00' }); // 同上：绝对过去的日期
 const moved = db.getReminderById(future.id)!;
 ok('due_ts 跟随新时间重算', moved.due_ts !== null && moved.due_ts < REF.getTime() - 86400000, fmt(moved.due_ts));
 ok('改后进入到期列表', db.listDueReminders('t1').some((r) => r.id === future.id));

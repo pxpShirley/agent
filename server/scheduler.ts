@@ -10,6 +10,7 @@
 import * as db from './db.js';
 import type { ProactiveAction } from './db/proactive.js';
 import { runBailianAgentTurn } from './llm/bailian.js';
+import type { AgentEvent } from './agent.js';
 import { isCompatEngineConfigured } from './settings.js';
 import { notifyChanged } from './realtime.js';
 import type { ReminderRecord } from './db.js';
@@ -67,6 +68,46 @@ function pickGoals(owner: string, max = 1): Array<{ key: string; value: string }
     (m) => m.kind === 'plan' && /理想状态|目标|想成为|想做|希望|愿望|立志|梦想/.test(m.key + m.value)
   );
   return goals.slice(0, max).map((m) => ({ key: m.key, value: m.value }));
+}
+
+/**
+ * 晨报/周复盘的**事实层**：两条生成路径（模板 / 模型）唯一的共同数据入口。
+ *
+ * 为什么必须抽出来：以前模板自己查库拼句子，模型路径则只靠 buildMemoryContext
+ * 拿记忆——而后者是用「写一段今日晨报」这类**生成指令**当检索 query 的，
+ * 与「理想状态：想每天早起跑步」几乎零字面向合，F2 的愿望根本进不了模型。
+ * 于是系统提示词承诺「你会在晨报里陪他朝它迈一小步」，模型却拿不到材料。
+ *
+ * 原则：**要不要说（选哪些事实）是确定性决策，怎么说（表达）才交给模型。**
+ * 把前者交给相似度检索，等于让「这次提不提这个愿望」变成随机事件。
+ */
+export interface BriefingFacts {
+  pendingCount: number;
+  dueSoon: Array<{ body: string }>;
+  lastMoodLevel: number | null;
+  moodAvg: number | null;
+  memoryCount: number;
+  memories: Array<{ key: string; value: string }>;
+  goals: Array<{ key: string; value: string }>;
+  feedback: string | null;
+}
+export function collectBriefingFacts(owner: string): BriefingFacts {
+  const pending = db.listReminders(owner, false);
+  const dueSoon = pending
+    .filter((r) => r.due_ts !== null && r.due_ts <= Date.now() + 2 * 86400000)
+    .map((r) => ({ body: r.body }));
+  const moods = db.recentMoods(owner, 7);
+  const memoryRows = db.getMemories(owner, 50);
+  return {
+    pendingCount: pending.length,
+    dueSoon,
+    lastMoodLevel: moods.length ? moods[0].level : null,
+    moodAvg: moods.length ? moods.reduce((s, m) => s + m.level, 0) / moods.length : null,
+    memoryCount: memoryRows.length,
+    memories: pickBriefMemories(owner),
+    goals: pickGoals(owner),
+    feedback: db.summarizeFeedback(owner),
+  };
 }
 
 /** 解析用户的「免打扰时段」记忆（如"晚上11点后少打扰"）→ 小时窗口；无则返回 null */
@@ -200,63 +241,52 @@ export function runRoutineCheckins(owner: string, now = new Date()): number {
 }
 
 export function buildMorning(owner: string): { title: string; body: string } {
-  const pending = db.listReminders(owner, false);
-  const dueSoon = pending.filter((r) => r.due_ts !== null && r.due_ts <= Date.now() + 2 * 86400000);
-  const moods = db.recentMoods(owner, 7);
-  const lastMood = moods[0];
-  const mems = pickBriefMemories(owner);
-  const fb = db.summarizeFeedback(owner);
-
+  const f = collectBriefingFacts(owner);
   const lines: string[] = [];
-  if (dueSoon.length) {
-    lines.push(`· 接下来有 ${dueSoon.length} 件事要盯：${dueSoon[0].body}${dueSoon.length > 1 ? ' 等' : ''}`);
-  } else if (pending.length) {
-    lines.push(`· 你有 ${pending.length} 件待办，暂时都不急`);
+  if (f.dueSoon.length) {
+    lines.push(`· 接下来有 ${f.dueSoon.length} 件事要盯：${f.dueSoon[0].body}${f.dueSoon.length > 1 ? ' 等' : ''}`);
+  } else if (f.pendingCount) {
+    lines.push(`· 你有 ${f.pendingCount} 件待办，暂时都不急`);
   } else {
     lines.push('· 近期没有紧迫待办，节奏可以松一点');
   }
-  if (lastMood) {
+  if (f.lastMoodLevel !== null) {
     const tone =
-      lastMood.level <= 2
+      f.lastMoodLevel <= 2
         ? '最近你状态有点低，今天我多陪你一会儿'
-        : lastMood.level >= 4
+        : f.lastMoodLevel >= 4
         ? '看你最近状态不错，保持住'
         : '最近情绪平稳，挺好的';
     lines.push(`· ${tone}`);
   }
-  for (const mem of mems) {
+  for (const mem of f.memories) {
     lines.push(`· 按你的情况，我记着：${mem.key ? `${mem.key} → ` : ''}${mem.value}`);
   }
   // F2 生活教练层：把用户说过的愿望/目标轻轻带到晨报里，陪他朝理想状态迈一小步
-  for (const g of pickGoals(owner)) {
+  for (const g of f.goals) {
     const v = g.value.length > 30 ? g.value.slice(0, 30) + '…' : g.value;
     lines.push(`· 你说过想「${v}」——今天要不要先迈出最小的一步？`);
   }
-  if (fb) lines.push(`· ${fb}`);
+  if (f.feedback) lines.push(`· ${f.feedback}`);
   lines.push('今天想让我帮你做点什么？规划、提醒、陪聊，都可以开口。');
   return { title: '今日晨报', body: lines.join('\n') };
 }
 
 export function buildWeekly(owner: string): { title: string; body: string } {
-  const pending = db.listReminders(owner, false);
-  const moods = db.recentMoods(owner, 7);
-  const avg = moods.length ? moods.reduce((s, m) => s + m.level, 0) / moods.length : null;
-  const memories = db.getMemories(owner, 50);
-  const mems = pickBriefMemories(owner);
-  const fb = db.summarizeFeedback(owner);
+  const f = collectBriefingFacts(owner);
   const lines: string[] = [];
-  lines.push(`· 本周还有 ${pending.length} 件待办没清零`);
-  if (avg !== null) lines.push(`· 本周情绪均值 ${avg.toFixed(1)} / 5`);
-  lines.push(`· 我们已经一起攒下 ${memories.length} 条关于你的记忆`);
-  for (const mem of mems) {
+  lines.push(`· 本周还有 ${f.pendingCount} 件待办没清零`);
+  if (f.moodAvg !== null) lines.push(`· 本周情绪均值 ${f.moodAvg.toFixed(1)} / 5`);
+  lines.push(`· 我们已经一起攒下 ${f.memoryCount} 条关于你的记忆`);
+  for (const mem of f.memories) {
     lines.push(`· 你之前提过：${mem.key ? `${mem.key} → ` : ''}${mem.value}`);
   }
   // F2 生活教练层：周复盘里也回望一下理想状态，给一句推进建议
-  for (const g of pickGoals(owner)) {
+  for (const g of f.goals) {
     const v = g.value.length > 30 ? g.value.slice(0, 30) + '…' : g.value;
     lines.push(`· 关于你提过的「${v}」——这周有没有往前挪一点点？没的话，下周咱们从最小的一步开始。`);
   }
-  if (fb) lines.push(`· ${fb}`);
+  if (f.feedback) lines.push(`· ${f.feedback}`);
   lines.push('新的一周，想先搞定哪件事？我可以帮你把它拆开。');
   return { title: '本周复盘', body: lines.join('\n') };
 }
@@ -278,31 +308,113 @@ function buildReminderCard(r: ReminderRecord): { title: string; body: string } {
   };
 }
 
-// 优先用 agent 生成，失败回退模板
-// viaAgent：本段内容到底是模型写的还是模板写的。没有它就没法发现
-// 「走模型时 F2 的愿望根本没进 prompt」这类只在一条路径上出现的缺陷。
-async function maybeAgent(
+/**
+ * 模型路径的 prompt：只注入**事实**，不注入模板句式。
+ *
+ * 这是「统一数据层 / 自由表达层」的分界线：两条路径拿到同一份 BriefingFacts，
+ * 模板把它渲染成固定句式，模型则被要求用自己的话自然带出。注入固定句式等于
+ * 让模型照抄模板，那模型路径就没存在价值了；反过来完全不注入，模型就只能在
+ * 检索命不命中里碰运气（这正是 F2 之前被绕过的根因）。
+ */
+export function buildBriefingPrompt(
   owner: string,
   kind: 'morning' | 'weekly',
-  fallback: () => { title: string; body: string }
+  f: BriefingFacts
+): string {
+  const facts: string[] = [];
+  facts.push(`- 待办：未完成 ${f.pendingCount} 件` + (f.dueSoon.length ? `，其中近期到期 ${f.dueSoon.length} 件（如：${f.dueSoon[0].body}）` : ''));
+  if (f.moodAvg !== null) facts.push(`- 近 7 天情绪均值：${f.moodAvg.toFixed(1)} / 5`);
+  if (f.lastMoodLevel !== null) facts.push(`- 最近一次心情：${f.lastMoodLevel} / 5`);
+  facts.push(`- 已记录记忆：${f.memoryCount} 条`);
+  for (const m of f.memories) {
+    facts.push(`- 记忆：${m.key ? `${m.key} → ` : ''}${m.value}`);
+  }
+  if (f.feedback) facts.push(`- 用户反馈：${f.feedback}`);
+  if (f.goals.length) {
+    facts.push(`- 用户说过的愿望/目标：${f.goals.map((g) => `「${g.value}」`).join('、')}`);
+  }
+
+  const task =
+    kind === 'morning'
+      ? '写一段今日晨报：亲切、简洁（3-5 句）、全程简体中文。'
+      : '写一段本周复盘：温柔、有行动建议、全程简体中文、3-5 句。';
+  const goalRule = f.goals.length
+    ? '上面那条愿望/目标必须轻轻带到：用一个具体、今天就能做到的最小一步来提议，语气是陪伴不是说教；不要直接复述愿望原文。'
+    : '本次没有记录到愿望/目标，绝不要凭空编造一个。';
+  const style =
+    '只能用上面的材料，不要编造未记录的安排或数据；用连贯自然的口语，不要写成「· 」开头的清单，也不要逐条复述事实。';
+
+  return [
+    `你是 AI 生活管家「星澜」。为老用户「${owner}」${task}`,
+    '',
+    '# 关于他的已知事实',
+    ...facts,
+    '',
+    `# 写作要求\n${goalRule}${style}`,
+  ].join('\n');
+}
+
+/**
+ * 启发式观测：生成的文案里是否真的出现了愿望的片段。
+ * 只用于 trace 回放，不参与生成、不回灌模型上下文（红线同 MEMORY.md §九）。
+ * 用中文 2-gram 而非整句匹配：模型本就该用自己的话，要求原文一致反而会逼它照抄。
+ */
+export function goalEchoed(body: string, goals: Array<{ value: string }>): boolean {
+  if (!goals.length || !body) return false;
+  const clean = goals[0].value.replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
+  for (let i = 0; i + 2 <= clean.length; i++) {
+    if (body.includes(clean.slice(i, i + 2))) return true;
+  }
+  return false;
+}
+
+/**
+ * F2 决策摘要：从「⚠️ 模型路径没注入 goals」这种静态告警，改成每次都能回放的
+ * 「候选几条 → 有没有进材料 → 文案里有没有真的出现」三段式证据。
+ */
+function describeF2(
+  label: string,
+  c: { body: string; viaAgent: boolean },
+  goals: Array<{ value: string }>
+): string {
+  const head = `${label}已生成 · 路径=${c.viaAgent ? '模型' : '模板'}`;
+  if (!goals.length) return `${head} · F2=本次无愿望候选`;
+  const echoed = goalEchoed(c.body, goals);
+  return (
+    `${head} · F2愿望候选=${goals.length}（${goals[0].value.slice(0, 20)}）` +
+    ` · 已进${c.viaAgent ? '模型prompt' : '模板文案'}` +
+    ` · 文案落地=${echoed ? '是' : '否（启发式，模型未采用）'}`
+  );
+}
+
+export type BriefingGenerator = (prompt: string) => AsyncIterable<AgentEvent>;
+
+// 优先用 agent 生成，失败回退模板。
+// viaAgent：本段内容到底是模型写的还是模板写的。没有它就没法发现
+// 「走模型时 F2 的愿望根本没进 prompt」这类只在一条路径上出现的缺陷。
+// generate：可注入的生成器，让探针能在不调真实 API 的前提下驱动模型路径。
+export async function maybeAgent(
+  owner: string,
+  kind: 'morning' | 'weekly',
+  fallback: () => { title: string; body: string },
+  generate?: BriefingGenerator
 ): Promise<{ title: string; body: string; viaAgent: boolean }> {
   const base = fallback();
   if (process.env.AGENT_BRIEFING === '1' && engineConfigured()) {
     try {
-      const prompt =
-        kind === 'morning'
-          ? `你是 AI 生活管家「星澜」。为老用户「${owner}」写一段今日晨报：亲切、简洁（3-5 句）、中文，基于你已知的记忆与待办，不要编造未记录的信息。`
-          : `你是 AI 生活管家「星澜」。为老用户「${owner}」写一段本周复盘：温柔、有行动建议、中文、3-5 句，不要编造未记录的信息。`;
+      const prompt = buildBriefingPrompt(owner, kind, collectBriefingFacts(owner));
       let text = '';
-      const gen = runBailianAgentTurn({
-        sessionId: `sched-${owner}-${kind}-${Date.now()}`,
-        message: prompt,
-        customerName: owner,
-        intent: 'other',
-        omitTools: ['web_lookup'], // 晨报/复盘只基于库内记忆，不联网
-        // 主动发起的 run：让 trace 视图能把「星澜自己开口」和「用户说话」分开
-        source: 'proactive',
-      });
+      const gen = generate
+        ? generate(prompt)
+        : runBailianAgentTurn({
+            sessionId: `sched-${owner}-${kind}-${Date.now()}`,
+            message: prompt,
+            customerName: owner,
+            intent: 'other',
+            omitTools: ['web_lookup'], // 晨报/复盘只基于库内记忆，不联网
+            // 主动发起的 run：让 trace 视图能把「星澜自己开口」和「用户说话」分开
+            source: 'proactive',
+          });
       for await (const ev of gen) {
         if (ev.type === 'text') text += ev.content;
       }
@@ -413,18 +525,9 @@ export async function tick(): Promise<void> {
         { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
       ];
       db.addProactiveCard({ owner, kind: 'morning', title: c.title, body: c.body, actions });
-      // F2 生活教练层：候选愿望挑到了几个、以及到底有没有真的进晨报。
-      // ⚠️ 走模型时 maybeAgent 的 prompt 里没有 goals，F2 此路不生效——把这点写进
-      //    trace，缺陷就不会一直躲在「晨报看着挺正常」的假象背后。
-      const goals = pickGoals(owner);
-      decisions.push({
-        phase: 'intent',
-        text: summarizeText(
-          `晨报已生成 · 路径=${c.viaAgent ? '模型' : '模板'} · F2愿望候选=${goals.length}` +
-            (goals.length ? `（${goals[0].value.slice(0, 20)}）` : '') +
-            (c.viaAgent ? ' · ⚠️模型路径 prompt 未注入 goals，F2 此路不生效' : '')
-        ),
-      });
+      // F2 生活教练层：候选愿望挑到几个 → 有没有进材料 → 文案里有没有真的出现。
+      // 两条路径现在共用 collectBriefingFacts，不注入愿望的缺陷已从能力层消除。
+      decisions.push({ phase: 'intent', text: summarizeText(describeF2('晨报', c, pickGoals(owner))) });
     }
     // 3) 每周复盘（周五 18 点后、本周未生成、且非免打扰时段）
     if (!quiet && day === 5 && hour >= 18 && !db.proactiveCardExistsSince(owner, 'weekly', startOfWeekIso())) {
@@ -434,15 +537,7 @@ export async function tick(): Promise<void> {
         { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
       ];
       db.addProactiveCard({ owner, kind: 'weekly', title: c.title, body: c.body, actions });
-      const goals = pickGoals(owner);
-      decisions.push({
-        phase: 'intent',
-        text: summarizeText(
-          `周复盘已生成 · 路径=${c.viaAgent ? '模型' : '模板'} · F2愿望候选=${goals.length}` +
-            (goals.length ? `（${goals[0].value.slice(0, 20)}）` : '') +
-            (c.viaAgent ? ' · ⚠️模型路径 prompt 未注入 goals，F2 此路不生效' : '')
-        ),
-      });
+      decisions.push({ phase: 'intent', text: summarizeText(describeF2('周复盘', c, pickGoals(owner))) });
     }
     // 4) F3 习惯发现与软提醒：从周期提醒推导习惯 → 在匹配时刻温柔提一句（7 天节流，免打扰时段跳过）
     syncRoutines(owner);

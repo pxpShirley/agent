@@ -127,8 +127,14 @@ try {
   // 已到期的提醒：到期提醒不受免打扰影响，保证本轮一定有决策落库（否则断言会飘）
   db.addReminder(schedOwner, '探针到期项', new Date(Date.now() - 60_000).toISOString());
   await tick();
-  const proactiveRuns = db.getAgentRuns(50).filter((r) => r.source === 'proactive');
-  ok('产生了 proactive run', proactiveRuns.length >= 1, `runs=${proactiveRuns.length}`);
+  // ⚠️ 必须按 owner 锁定目标 run，不能直接用「所有 proactive run 的 [0]」：
+  // 组 5 的 probe-owner 有提醒、组 6 又手工插了一条 proactive run，一次 tick 会为
+  // 多个 owner 各建一条；getAgentRuns 按 created_at DESC 排，毫秒级时间戳撞车时
+  // [0] 取到哪条全凭运气，断言会间歇性假失败。只断言「本 owner 的到期提醒决策」。
+  const proactiveRuns = db
+    .getAgentRuns(50)
+    .filter((r) => r.source === 'proactive' && (r.prompt || '').includes(`owner=${schedOwner}`));
+  ok('产生了本 owner 的 proactive run', proactiveRuns.length >= 1, `runs=${proactiveRuns.length}`);
   if (proactiveRuns.length) {
     const pr = proactiveRuns[0];
     ok('run 标记 model=scheduler', pr.model === 'scheduler', `got ${pr.model}`);
