@@ -117,6 +117,35 @@
     background: rgba(255,122,122,.12); border: 1px solid var(--red); color: var(--red); font-size: 13px;
   }
   .loading { color: var(--muted); padding: 24px 18px; }
+  /* 视图切换 tab（本页是独立 HTML，没有全局 button reset，需自带） */
+  .trace h2.tabs-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; }
+  :where(button) { appearance: none; background: transparent; border: none; cursor: pointer; font: inherit; }
+  .tab {
+    font-size: 11px; letter-spacing: .5px; color: var(--muted);
+    padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--core); border-color: var(--core); background: rgba(111,214,255,.08); }
+  /* F2 事后反馈面板 */
+  .f2-note {
+    margin: 14px 18px 6px; padding: 9px 12px; font-size: 12px; line-height: 1.65;
+    color: var(--muted); background: var(--panel-2);
+    border-left: 3px solid var(--purple); border-radius: 4px;
+  }
+  .f2-note b { color: var(--purple); font-weight: 600; }
+  .f2-table { width: calc(100% - 36px); margin: 10px 18px 30px; border-collapse: collapse; font-size: 12px; }
+  .f2-table th, .f2-table td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top;
+  }
+  .f2-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .f2-table td { color: var(--text); }
+  .f2-table .excerpt { color: var(--muted); max-width: 260px; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); }
+  .tag.seen { color: var(--green); border-color: var(--green); }
+  .tag.dismissed { color: var(--red); border-color: var(--red); }
+  .tag.none { color: var(--muted); }
+  .tag.yes { color: var(--core); border-color: var(--core); }
+  .tag.no { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -131,7 +160,10 @@
       <div id="runList"><div class="empty">加载中…</div></div>
     </section>
     <section class="trace">
-      <h2>回放时间线</h2>
+      <h2 class="tabs-bar">
+        <button class="tab active" id="tabTrace">回放时间线</button>
+        <button class="tab" id="tabF2">F2 事后反馈</button>
+      </h2>
       <div id="traceView"><div class="empty">从左侧选择一轮查看回放</div></div>
     </section>
   </main>
@@ -147,6 +179,65 @@
   const runList = $('#runList');
   const traceView = $('#traceView');
   let selectedId = null;
+
+  // 两个视图：生成时刻的回放 vs 之后的用户行为关联
+  function setTab(which) {
+    $('#tabTrace').classList.toggle('active', which === 'trace');
+    $('#tabF2').classList.toggle('active', which === 'f2');
+  }
+  $('#tabTrace').addEventListener('click', () => {
+    setTab('trace');
+    if (selectedId) selectRun(selectedId);
+    else traceView.innerHTML = '<div class="empty">从左侧选择一轮查看回放</div>';
+  });
+  $('#tabF2').addEventListener('click', () => { setTab('f2'); loadF2(); });
+
+  async function loadF2() {
+    traceView.innerHTML = '<div class="loading">加载 F2 事后反馈…</div>';
+    try {
+      const res = await fetch('/api/admin/f2-outcomes' + qs);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      renderF2(data.outcomes || [], data.note || '');
+    } catch (e) {
+      traceView.innerHTML = '<div class="err-banner">加载失败：' + esc(e.message) + '</div>';
+    }
+  }
+
+  function renderF2(rows, note) {
+    // 归因边界必须写在看得见的地方：否则「收下/划掉」会被误读成 F2 生效与否
+    let html = '<div class="f2-note"><b>归因边界：</b>' + esc(note) +
+      '<br>①②③ 是生成时刻的证据（材料层确定性、词面/提议层启发式）；' +
+      '④ 是之后用户对<b>整张卡片</b>的行为。两者不能互相替代，也不能合并成一个「生效」结论。</div>';
+    if (!rows.length) {
+      html += '<div class="empty">暂无晨报 / 复盘卡片记录</div>';
+      traceView.innerHTML = html;
+      return;
+    }
+    html += '<table class="f2-table"><thead><tr>' +
+      '<th>生成时间</th><th>类型</th><th>路径</th><th>②词面</th><th>③提议</th>' +
+      '<th>④整卡反馈</th><th>卡片摘要</th></tr></thead><tbody>';
+    const tag = (cls, text) => '<span class="tag ' + cls + '">' + esc(text) + '</span>';
+    for (const r of rows) {
+      const resp = r.response === 'seen' ? tag('seen', '收下')
+        : r.response === 'dismissed' ? tag('dismissed', '划掉')
+        : tag('none', '暂无信号');
+      const bool = (v) => v === null ? tag('none', '无记录')
+        : v ? tag('yes', '命中') : tag('no', '未命中');
+      html += '<tr>' +
+        '<td>' + esc(fmtTime(r.created_at)) + '</td>' +
+        '<td>' + esc(r.kind === 'morning' ? '晨报' : '周复盘') + '</td>' +
+        '<td>' + esc(r.path === 'model' ? '模型' : r.path === 'template' ? '模板' : '-') + '</td>' +
+        '<td>' + bool(r.goal_mentioned) + '</td>' +
+        '<td>' + (r.nudge_present === null ? tag('none', '无记录')
+          : r.nudge_present ? tag('yes', '有') : tag('no', '无')) + '</td>' +
+        '<td>' + resp + (r.responded_at ? '<div class="excerpt">' + esc(fmtTime(r.responded_at)) + '</div>' : '') + '</td>' +
+        '<td class="excerpt">' + esc(r.body_excerpt) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+    traceView.innerHTML = html;
+  }
 
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -198,6 +289,7 @@
   }
 
   async function selectRun(id) {
+    setTab('trace'); // 点左栏始终回到回放，避免停在 F2 面板却以为在看这一轮
     selectedId = id;
     document.querySelectorAll('.run-item').forEach((n) => {
       n.classList.toggle('active', n.dataset.id === id);
@@ -239,12 +331,14 @@
         html += '<div class="body">';
         html += '<span class="phase ' + esc(s.phase) + '">' + esc(s.phase) + '</span>';
         if (s.tool) html += '<span class="tool">' + esc(s.tool) + '</span>';
-        // 可见文本（think / ask_user / error / intent）
-        if (s.text) {
-          html += '<div class="content">' + esc(s.text) + '</div>';
-        } else if (s.args_json) {
-          html += '<div class="label">入参</div><div class="content">' + esc(s.args_json) + '</div>';
-        } else if (s.result_json) {
+        // F2 intent span 同时带 text 与 args_json（四层结构化证据），两者都要可见；
+        // 不能用 else-if，否则结构化证据会被文本盖住，事后关联就无从查起。
+        if (s.text) html += '<div class="content">' + esc(s.text) + '</div>';
+        if (s.args_json) {
+          html += '<div class="label">结构化证据 / 入参</div>' +
+            '<div class="content">' + esc(s.args_json) + '</div>';
+        }
+        if (s.result_json) {
           html += '<div class="label">返回</div><div class="content">' + esc(s.result_json) + '</div>';
         }
         html += '</div></div>';

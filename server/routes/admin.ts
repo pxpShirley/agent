@@ -163,6 +163,18 @@ app.get('/api/admin/runs/:id/trace', (req, res) => {
   res.json({ run, spans: db.getRunTrace(run.id) });
 });
 
+// F2 事后反馈关联（只读）：把生成时刻的分层证据与之后用户对整张卡片的行为拼起来。
+// 注意 response='none' 表示「暂无信号」而非负面；反馈粒度是整卡，不能归因到 F2 单行。
+// ⚠️ 红线：只对外暴露观测数据，绝不回灌模型上下文。
+app.get('/api/admin/f2-outcomes', (req, res) => {
+  const owner = (req.query.owner as string) || undefined;
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+  res.json({
+    outcomes: db.getF2Outcomes(owner, limit),
+    note: 'seen/dismissed 是整张晨报/复盘卡片的反馈，不能归因到 F2 那一行；none = 暂无信号（不等于负面）。词面/提议均为启发式，用户感知不可直接测量。',
+  });
+});
+
 // 回放查看器页面（自包含只读 HTML）：浏览器直接打开即可回放任意一轮
 app.get('/api/admin/trace', (_req, res) => {
   res.type('text/html').send(TRACE_VIEWER_HTML);

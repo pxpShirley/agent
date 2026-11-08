@@ -355,9 +355,9 @@ export function buildBriefingPrompt(
 }
 
 /**
- * 启发式观测：生成的文案里是否真的出现了愿望的片段。
- * 只用于 trace 回放，不参与生成、不回灌模型上下文（红线同 MEMORY.md §九）。
+ * 词面层（启发式）：文案里是否出现了愿望的片段。
  * 用中文 2-gram 而非整句匹配：模型本就该用自己的话，要求原文一致反而会逼它照抄。
+ * ⚠️ 它只能证明「词出现了」，**不能**证明给出了推进建议，更不能证明用户被鼓励了。
  */
 export function goalEchoed(body: string, goals: Array<{ value: string }>): boolean {
   if (!goals.length || !body) return false;
@@ -369,22 +369,65 @@ export function goalEchoed(body: string, goals: Array<{ value: string }>): boole
 }
 
 /**
- * F2 决策摘要：从「⚠️ 模型路径没注入 goals」这种静态告警，改成每次都能回放的
- * 「候选几条 → 有没有进材料 → 文案里有没有真的出现」三段式证据。
+ * 提议层（启发式）：文案是否真的给了「一个具体、当下可做的最小一步」的提议。
+ *
+ * 为什么需要它：goalEchoed 只要命中「早起」两个字就返回 true，于是
+ * 「今天天气不错，记得早起」也会被判成 F2 生效——那是提及，不是教练。
+ * 这里要求**提议语气**与**具体一步**同时出现，双条件比单词匹配严格得多。
+ * 仍是启发式：只用于观测，不参与生成、不回灌模型上下文（红线）。
+ */
+const NUDGE_TONE = /要不要|要不|不如|试试|试一下|咱们|建议|可以|来个|先试试/;
+const NUDGE_STEP = /一小步|最小的一步|迈出|往前挪|今天|这周|从[^，。！？]{0,10}开始|[0-9０-９]+\s*(分钟|公里|页|步|个|件)/;
+export function goalNudgePresent(body: string): boolean {
+  if (!body) return false;
+  return NUDGE_TONE.test(body) && NUDGE_STEP.test(body);
+}
+
+/**
+ * F2 决策摘要：四层证据，每层只说自己真能证明的事。
+ *
+ * 为什么拆层：原来的「文案落地=是」是个撒谎的布尔——它把「词面出现」
+ * 包装成「用户被鼓励了」。一个生成时刻的布尔值根本承担不起这个语义。
+ *   ① 材料层（确定性）：愿望有没有进生成材料 —— 事实，可断言
+ *   ② 词面层（启发式）：输出有没有提到愿望
+ *   ③ 提议层（启发式）：有没有给出具体最小一步
+ *   ④ 行为层（事后）：用户看了/划了 —— 生成时刻恒为 pending，
+ *      必须由 card_id 事后关联补上，**绝不能在生成时伪造一个结果**
+ *
+ * 归因边界：seen/dismissed 是**整张卡片**的反馈，划掉晨报可能是嫌待办清单
+ * 啰嗦，不能解读成「F2 不受用」。这句话必须写进证据，否则新机制只是
+ * 把第一个假象换成第二个更精致的假象。
  */
 function describeF2(
   label: string,
   c: { body: string; viaAgent: boolean },
-  goals: Array<{ value: string }>
-): string {
+  goals: Array<{ value: string }>,
+  cardId: string,
+  kind: 'morning' | 'weekly'
+): db.SpanInput {
   const head = `${label}已生成 · 路径=${c.viaAgent ? '模型' : '模板'}`;
-  if (!goals.length) return `${head} · F2=本次无愿望候选`;
-  const echoed = goalEchoed(c.body, goals);
-  return (
-    `${head} · F2愿望候选=${goals.length}（${goals[0].value.slice(0, 20)}）` +
-    ` · 已进${c.viaAgent ? '模型prompt' : '模板文案'}` +
-    ` · 文案落地=${echoed ? '是' : '否（启发式，模型未采用）'}`
-  );
+  const mentioned = goalEchoed(c.body, goals);
+  const nudge = goals.length ? goalNudgePresent(c.body) : false;
+  const text = goals.length
+    ? `${head} · F2候选=${goals.length}（${goals[0].value.slice(0, 20)}）` +
+      ` · 材料=已注入(确定性)` +
+      ` · 词面=${mentioned ? '命中' : '未命中'}(启发式)` +
+      ` · 提议=${nudge ? '有' : '无'}(启发式)` +
+      ` · 用户感知=不可测(见事后反馈关联)`
+    : `${head} · F2=本次无愿望候选`;
+  // 结构化证据：card_id 让生成时刻的 span 与事后的 proactive_feedback 可 join。
+  const args_json = JSON.stringify({
+    card_id: cardId,
+    kind,
+    path: c.viaAgent ? 'model' : 'template',
+    candidates: goals.length,
+    facts_injected: goals.length > 0,
+    goal_mentioned: mentioned,
+    nudge_present: nudge,
+    user_response: 'pending',
+    caveat: '词面/提议为启发式；seen/dismissed 是整卡反馈，不能归因到 F2 单行',
+  });
+  return { phase: 'intent', text: summarizeText(text), args_json };
 }
 
 export type BriefingGenerator = (prompt: string) => AsyncIterable<AgentEvent>;
@@ -524,10 +567,9 @@ export async function tick(): Promise<void> {
         { type: 'ask_agent', label: '一键问栖光', payload: { prompt: '今天有什么要我帮忙安排的？' } },
         { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
       ];
-      db.addProactiveCard({ owner, kind: 'morning', title: c.title, body: c.body, actions });
-      // F2 生活教练层：候选愿望挑到几个 → 有没有进材料 → 文案里有没有真的出现。
-      // 两条路径现在共用 collectBriefingFacts，不注入愿望的缺陷已从能力层消除。
-      decisions.push({ phase: 'intent', text: summarizeText(describeF2('晨报', c, pickGoals(owner))) });
+      const card = db.addProactiveCard({ owner, kind: 'morning', title: c.title, body: c.body, actions });
+      // F2 四层证据：材料/词面/提议在生成时刻记，行为层留 pending 由 card_id 事后关联。
+      decisions.push(describeF2('晨报', c, pickGoals(owner), card.id, 'morning'));
     }
     // 3) 每周复盘（周五 18 点后、本周未生成、且非免打扰时段）
     if (!quiet && day === 5 && hour >= 18 && !db.proactiveCardExistsSince(owner, 'weekly', startOfWeekIso())) {
@@ -536,8 +578,8 @@ export async function tick(): Promise<void> {
         { type: 'ask_agent', label: '一键问栖光', payload: { prompt: '新的一周，先帮我搞定哪件事？' } },
         { type: 'open_view', label: '跳转视图', payload: { view: 'dashboard' } },
       ];
-      db.addProactiveCard({ owner, kind: 'weekly', title: c.title, body: c.body, actions });
-      decisions.push({ phase: 'intent', text: summarizeText(describeF2('周复盘', c, pickGoals(owner))) });
+      const card = db.addProactiveCard({ owner, kind: 'weekly', title: c.title, body: c.body, actions });
+      decisions.push(describeF2('周复盘', c, pickGoals(owner), card.id, 'weekly'));
     }
     // 4) F3 习惯发现与软提醒：从周期提醒推导习惯 → 在匹配时刻温柔提一句（7 天节流，免打扰时段跳过）
     syncRoutines(owner);

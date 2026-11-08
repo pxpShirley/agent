@@ -17,6 +17,10 @@
  *   6) goalEchoed 启发式：命中/不命中/空候选
  *   7) 端到端：注入假生成器驱动**模型路径**，断言愿望真的进了 prompt、文案真的落地
  *   8) 兜底路径仍在：关闭开关 / 生成器抛错时都回退模板（凭证耗尽、离线不能没有主动服务）
+ *   9) F2 四层证据：材料(确定性)/词面(启发式)/提议(启发式)/行为(pending)，
+ *      且生成时刻绝不伪造一个还不存在的行为结果
+ *  10) 事后关联：card_id join proactive_feedback；无反馈是「暂无信号」不是负面；
+ *      整卡反馈不能归因到 F2 单行
  *
  * 零成本：不调任何真实 API；临时库，跑完即删。
  * 红线自检：事实只用于生成 prompt 与只读观测，不把 trace 文本回灌上下文。
@@ -38,7 +42,9 @@ const {
   buildMorning,
   buildWeekly,
   goalEchoed,
+  goalNudgePresent,
   maybeAgent,
+  tick,
 } = await import('../server/scheduler.js');
 
 let pass = 0;
@@ -132,7 +138,7 @@ try {
   ok('body 是模型文案而非模板', c.body === '今天要不要先从早起十分钟开始？', c.body);
   ok('★ 愿望确实进了模型 prompt（F2 不再被绕过）', captured.includes(GOAL), captured.slice(0, 300));
   ok('★ prompt 含推进指令', captured.includes('最小一步'));
-  ok('★ 文案落地可被启发式判中', goalEchoed(c.body, f.goals));
+  ok('★ 词面层可被启发式判中（仅证明词出现，不代表用户感知）', goalEchoed(c.body, f.goals));
   ok('模型路径不夹带模板句式', !captured.includes('你说过想「'));
 
   const cw = await maybeAgent(OWNER, 'weekly', () => buildWeekly(OWNER), async function* (prompt: string) {
@@ -150,6 +156,59 @@ try {
     throw new Error('quota 403');
   });
   ok('凭证/生成失败 → 回退模板', cErr.viaAgent === false && cErr.body === tm);
+
+  console.log('\n[briefing-probe] 9) 提议层判据 + 生成时刻四层证据');
+  ok('模板句命中提议层', goalNudgePresent(`你说过想「${GOAL}」——今天要不要先迈出最小的一步？`));
+  ok('模型自然句命中提议层', goalNudgePresent('今天要不要先从早起十分钟开始？'));
+  ok('★ 纯提及不命中（避免把「记得早起」当教练）', !goalNudgePresent('今天天气不错，记得早起'));
+  ok('空文案 → false', !goalNudgePresent(''));
+
+  // 关掉模型路径，防止 tick 意外触发真实网络请求
+  process.env.AGENT_BRIEFING = '0';
+  delete process.env.BAILIAN_API_KEY;
+  db.createSession({ id: 'briefing-probe-session', title: 'probe', model: 'probe', customer_name: OWNER });
+  await tick();
+  const schedRuns = db
+    .getAgentRuns(50)
+    .filter((r: any) => r.source === 'proactive' && (r.prompt || '').includes(`owner=${OWNER}`));
+  const allSpans = schedRuns.flatMap((r: any) => db.getRunTrace(r.id));
+  const f2Span = allSpans.find(
+    (s: any) => (s.args_json || '').includes('"card_id"') && (s.text || '').includes('F2候选')
+  ) as any;
+  ok('★ 生成了带 card_id 的 F2 span', !!f2Span, `spans=${allSpans.length}`);
+  if (f2Span) {
+    const t = String(f2Span.text || '');
+    ok('材料层标注确定性', t.includes('材料=已注入(确定性)'));
+    ok('词面层标注启发式', t.includes('词面=') && t.includes('(启发式)'));
+    ok('提议层独立成层', t.includes('提议=') && t.includes('(启发式)'));
+    ok('★ 不再用「文案落地」冒充用户感知', !t.includes('文案落地'));
+    ok('★ 明确写用户感知不可测', t.includes('用户感知=不可测'));
+    const meta = JSON.parse(String(f2Span.args_json));
+    ok('结构化证据含 card_id', typeof meta.card_id === 'string' && meta.card_id.length > 0);
+    ok('材料层 facts_injected=true', meta.facts_injected === true);
+    ok('词面/提议层为布尔', typeof meta.goal_mentioned === 'boolean' && typeof meta.nudge_present === 'boolean');
+    ok('★ 行为层生成时刻恒 pending（不伪造时序）', meta.user_response === 'pending');
+    ok('★ 携带归因 caveat', String(meta.caveat || '').includes('不能归因'));
+
+    console.log('\n[briefing-probe] 10) card_id 事后关联（只读）');
+    let outs = db.getF2Outcomes(OWNER, 50);
+    const row = outs.find((o: any) => o.card_id === meta.card_id);
+    ok('卡片出现在 outcomes', !!row, `rows=${outs.length}`);
+    if (row) {
+      ok('★ 无反馈 = none（不是负面）', row.response === 'none' && row.responded_at === null);
+      ok('生成证据已 join 到结果行', row.goal_mentioned === meta.goal_mentioned && row.nudge_present === meta.nudge_present);
+      ok('路径已关联', row.path === 'template');
+      db.recordProactiveFeedback(OWNER, meta.card_id, 'morning', 'seen');
+      db.recordProactiveFeedback(OWNER, meta.card_id, 'morning', 'dismissed');
+      outs = db.getF2Outcomes(OWNER, 50);
+      const rowsForCard = outs.filter((o: any) => o.card_id === meta.card_id);
+      ok('多次反馈只出一行（不重复计数）', rowsForCard.length === 1, `rows=${rowsForCard.length}`);
+      ok('★ 事后行为被关联（seen/dismissed 之一）',
+        rowsForCard[0] && (rowsForCard[0].response === 'seen' || rowsForCard[0].response === 'dismissed'));
+      ok('行为发生时间已回填', rowsForCard[0] && !!rowsForCard[0].responded_at);
+    }
+  }
+  ok('未知 owner 的 outcomes 为空', db.getF2Outcomes('no-such-owner').length === 0);
 } finally {
   for (const [k, v] of Object.entries(saved)) {
     if (v === undefined) delete process.env[k];

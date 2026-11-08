@@ -232,6 +232,86 @@ export function clearProactiveFeedback(owner: string): number {
   return db.prepare('DELETE FROM proactive_feedback WHERE owner = ?').run(owner).changes;
 }
 
+/**
+ * F2 事后结果关联（只读观测）：把「生成时刻的四层证据」与「之后用户的行为」
+ * 按 card_id 拼到一行。
+ *
+ * 设计约束（想清楚再改）：
+ * ① 生成时刻的 span 里 user_response 恒为 'pending' —— 用户还没看到卡片，
+ *    不能在生成时写一个不存在的结果。行为只能事后 join。
+ * ② 没有反馈记录返回 'none'（「暂无信号」），**不是** 'dismissed' 也不是 false。
+ *    没点 ≠ 不喜欢，把缺失当负面会直接把统计带偏。
+ * ③ 反馈粒度是**整张卡片**（morning/weekly），不是 F2 那一行。划掉晨报可能
+ *    只是嫌待办清单啰嗦；因此这里的 response 只能读作「这张卡后来怎样」，
+ *    绝不能解读成「F2 受用/不受用」。
+ * ④ 只读，绝不回灌模型上下文（Trace 红线）。
+ */
+export interface F2Outcome {
+  card_id: string;
+  owner: string;
+  kind: 'morning' | 'weekly';
+  created_at: string;
+  body_excerpt: string;
+  response: 'seen' | 'dismissed' | 'none';
+  responded_at: string | null;
+  goal_mentioned: boolean | null;
+  nudge_present: boolean | null;
+  path: 'model' | 'template' | null;
+}
+export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
+  const rows = db
+    .prepare(
+      `SELECT c.id AS card_id, c.owner, c.kind, c.created_at, c.body AS card_body,
+              f.action AS response, f.created_at AS responded_at
+       FROM proactive_cards c
+       LEFT JOIN proactive_feedback f ON f.card_id = c.id
+       WHERE c.kind IN ('morning','weekly') ${owner ? 'AND c.owner = ?' : ''}
+       ORDER BY c.created_at DESC, f.created_at DESC`
+    )
+    .all(...(owner ? [owner] : [])) as Array<Record<string, any>>;
+
+  // 生成时刻的结构化证据存在 span.args_json 里（JSON 文本，用 JS 解析避免依赖 JSON1 扩展）
+  const spanRows = db
+    .prepare(`SELECT args_json FROM agent_spans WHERE phase = 'intent' AND args_json LIKE '%"card_id"%'`)
+    .all() as Array<{ args_json: string }>;
+  const evidence = new Map<string, { goal_mentioned: boolean; nudge_present: boolean; path: string }>();
+  for (const r of spanRows) {
+    try {
+      const j = JSON.parse(r.args_json);
+      if (j?.card_id) evidence.set(j.card_id, {
+        goal_mentioned: Boolean(j.goal_mentioned),
+        nudge_present: Boolean(j.nudge_present),
+        path: String(j.path || ''),
+      });
+    } catch {
+      /* 旧 span / 脏数据忽略 */
+    }
+  }
+
+  const seen = new Set<string>();
+  const out: F2Outcome[] = [];
+  for (const r of rows) {
+    if (seen.has(r.card_id)) continue; // 同一卡片多次反馈只取最新一条
+    seen.add(r.card_id);
+    const ev = evidence.get(r.card_id);
+    const action = r.response === 'seen' || r.response === 'dismissed' ? r.response : 'none';
+    out.push({
+      card_id: r.card_id,
+      owner: r.owner,
+      kind: r.kind,
+      created_at: r.created_at,
+      body_excerpt: String(r.card_body || '').slice(0, 80),
+      response: action,
+      responded_at: action === 'none' ? null : r.responded_at,
+      goal_mentioned: ev ? ev.goal_mentioned : null,
+      nudge_present: ev ? ev.nudge_present : null,
+      path: ev && (ev.path === 'model' || ev.path === 'template') ? ev.path : null,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 const FEEDBACK_KIND_LABEL: Record<string, string> = {
   morning: '每日晨报',
   weekly: '本周复盘',
