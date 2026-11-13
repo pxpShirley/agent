@@ -105,7 +105,8 @@ function saveExperienceIfNew(owner: string, text: string): void {
 function isAspiration(text: string): boolean {
   // 排除信息检索意图：含「查/搜索/新闻/怎么…」的是去查资料，不是立愿望，别误判成目标
   if (/(查|搜索|搜一下|新闻|天气|股价|攻略|政策|百科|报价|多少钱|怎么走|怎么做|怎么用)/.test(text)) return false;
-  return /(我想(要|成为|去|学|瘦|早点|戒|坚持|每天|变得|能)|我希望|我的目标|我的愿望|我打算|我计划(去|做)|我立志|希望自己|想变成|想成为|我梦想)/.test(text);
+  // 「我想养成…」是极常见的愿望表达（11-13 冒烟时发现漏识别：F2 因此拿不到候选）
+  return /(我想(要|成为|去|学|养成|瘦|早点|戒|坚持|每天|变得|能)|我希望|我的目标|我的愿望|我打算|我计划(去|做)|我立志|希望自己|想变成|想成为|我梦想)/.test(text);
 }
 function goalKey(text: string): string {
   const t = text

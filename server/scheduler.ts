@@ -384,6 +384,25 @@ export function goalNudgePresent(body: string): boolean {
 }
 
 /**
+ * 抽出「提议那一句」用于表达多样性观测。
+ *
+ * 为什么需要它：命中率是**连续可调**的标量，模型把它压到 0.94 就能绕开
+ * 任何 0.95 阈值，成本近乎为零。但「每次换一句不同的话」无法靠调数值绕过：
+ * 要降低重复率，唯一办法是真的写出不一样的表达——而那正是我们想要的结果。
+ * 换句话说，这个信号的**规避成本等于目标本身**（incentive-aligned）。
+ *
+ * 只用于只读观测，绝不回灌模型上下文（红线）。
+ */
+export function nudgeExcerpt(body: string): string {
+  if (!body) return '';
+  const parts = String(body).split(/[。！？\n；;]/).map((s) => s.trim()).filter(Boolean);
+  // 必须与 goalNudgePresent 同判据（语气 + 具体一步双条件）：
+  // 只匹配语气词会把「节奏可以松一点」这种闲聊句当成提议句，抢在 F2 那句前面。
+  const hit = parts.find((p) => NUDGE_TONE.test(p) && NUDGE_STEP.test(p));
+  return hit ? hit.slice(0, 80) : '';
+}
+
+/**
  * F2 决策摘要：四层证据，每层只说自己真能证明的事。
  *
  * 为什么拆层：原来的「文案落地=是」是个撒谎的布尔——它把「词面出现」
@@ -424,6 +443,8 @@ function describeF2(
     facts_injected: goals.length > 0,
     goal_mentioned: mentioned,
     nudge_present: nudge,
+    // 提议句摘录：用于跨卡片检测「话术塌缩」，见 nudgeExcerpt 注释
+    nudge_excerpt: nudge ? nudgeExcerpt(c.body) : '',
     user_response: 'pending',
     caveat: '词面/提议为启发式；seen/dismissed 是整卡反馈，不能归因到 F2 单行',
   });

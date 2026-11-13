@@ -314,7 +314,47 @@ export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
 
 /** 指标饱和判定的最小样本量：少于它只是噪声，不配叫「恒真」 */
 const SATURATION_MIN = 5;
+/** ⚠️ 弱信号阈值：命中率是连续标量，压到 0.94 即可绕开，规避成本近乎为零 */
 const SATURATION_RATE = 0.95;
+
+/**
+ * 表达多样性：只描述**分布**，刻意不给「是否塌缩」的布尔结论。
+ *
+ * 为什么它是更强的证据：命中率是连续可调的标量，模型把它压到 0.94
+ * 就能绕开任何 0.95 阈值，成本几乎为零；但要降低重复率，唯一办法是
+ * 真的写出不一样的表达——而这正是我们想要的结果。
+ * 于是「刷指标」与「做好产品」变成同一件事（规避成本 = 目标本身）。
+ * 这也意味着它不需要阈值：唯一率 0.2 和 1.0 之间的差别本身就是信息。
+ */
+export interface DiversityStat {
+  /** 有提议句摘录的样本数（旧版 span 没有该字段，不计入） */
+  covered: number;
+  distinct: number;
+  uniqueRate: number | null;
+  /** 最高频那句占全部摘录的比例：1 = 所有卡片都在说同一句 */
+  topRepeatShare: number | null;
+  topExcerpt: string | null;
+}
+export function summarizeDiversity(excerpts: string[]): DiversityStat {
+  const vals = excerpts.map((e) => String(e || '').trim()).filter(Boolean);
+  if (!vals.length) {
+    return { covered: 0, distinct: 0, uniqueRate: null, topRepeatShare: null, topExcerpt: null };
+  }
+  const counts = new Map<string, number>();
+  for (const v of vals) counts.set(v, (counts.get(v) || 0) + 1);
+  let top = '';
+  let topN = 0;
+  for (const [k, n] of counts) {
+    if (n > topN) { top = k; topN = n; }
+  }
+  return {
+    covered: vals.length,
+    distinct: counts.size,
+    uniqueRate: counts.size / vals.length,
+    topRepeatShare: topN / vals.length,
+    topExcerpt: top.slice(0, 80),
+  };
+}
 
 export interface F2PathStats {
   path: 'model' | 'template';
@@ -326,10 +366,12 @@ export interface F2PathStats {
   noCandidate: number;
   mentionedRate: number | null;
   nudgeRate: number | null;
-  /** 生成侧指标恒真 —— 不是「变好了」，是「这个指标已经被刷到失去分辨力」 */
+  /** ⚠️ 弱信号：命中率恒高。可被「压到 0.94」零成本规避，单独不构成结论 */
   saturated: boolean;
   /** 模板路径固定句式，恒真是设计使然，不该当警报 */
   expectedSaturation: boolean;
+  /** 表达多样性：规避它就得真的写不同的话，因而是更难刷的独立证据 */
+  diversity: DiversityStat;
   seen: number;
   dismissed: number;
   noSignal: number;
@@ -361,6 +403,11 @@ export interface F2Stats {
  * ③ 无信号率以**全部样本**为分母，不只看有反馈的那些。
  * ④ 用户侧行为由系统外产生、生成侧无法直接控制；当「生成侧饱和」
  *    与「用户侧走低」同时出现，这个**背离**才是刷不动的信号。
+ * ⑤ **阈值由规避成本决定，不由数值决定**：0.95 能被 0.94 零成本绕开，
+ *    所以 saturated 只是弱信号。表达多样性（唯一率/最高频占比）无法靠
+ *    调数值规避——要降低重复率就得真的写不同的话，那正是我们要的结果。
+ *    因此多样性只给连续分布、不给布尔阈值，也不单独下结论。
+ *    **任一信号都不构成结论，组合与变化才值得看。**
  *
  * 红线：只读聚合，绝不回灌模型上下文。
  */
@@ -387,7 +434,7 @@ export function getF2Stats(days = 30): F2Stats {
   let staleSpansSkipped = 0;
   const groups = new Map<'model' | 'template', {
     samples: number; eligible: number; mentioned: number; nudge: number;
-    seen: number; dismissed: number; noSignal: number;
+    seen: number; dismissed: number; noSignal: number; excerpts: string[];
   }>();
   for (const s of spans) {
     let j: any;
@@ -399,14 +446,18 @@ export function getF2Stats(days = 30): F2Stats {
     }
     const path: 'model' | 'template' = j.path === 'model' ? 'model' : 'template';
     const g = groups.get(path) || {
-      samples: 0, eligible: 0, mentioned: 0, nudge: 0, seen: 0, dismissed: 0, noSignal: 0,
+      samples: 0, eligible: 0, mentioned: 0, nudge: 0, seen: 0, dismissed: 0, noSignal: 0, excerpts: [],
     };
     g.samples++;
     // 无愿望候选 → 不进率的分母：把它算成「提议失败」会把分母稀释成失真
     if (j.facts_injected === true) {
       g.eligible++;
       if (j.goal_mentioned) g.mentioned++;
-      if (j.nudge_present) g.nudge++;
+      if (j.nudge_present) {
+        g.nudge++;
+        // 旧版 span 没有摘录字段：不计入 covered，不把「无记录」当成「重复」
+        if (typeof j.nudge_excerpt === 'string' && j.nudge_excerpt.trim()) g.excerpts.push(j.nudge_excerpt);
+      }
     }
     const r = responseByCard.get(j.card_id);
     if (r === 'seen') g.seen++;
@@ -431,6 +482,7 @@ export function getF2Stats(days = 30): F2Stats {
       nudgeRate,
       saturated,
       expectedSaturation,
+      diversity: summarizeDiversity(g.excerpts),
       seen: g.seen,
       dismissed: g.dismissed,
       noSignal: g.noSignal,
@@ -449,7 +501,9 @@ export function getF2Stats(days = 30): F2Stats {
     '模板路径恒真属设计使然，只有模型路径的饱和值得警惕；两者必须分开统计。',
     '词面率/提议率的分母只含「有愿望候选」的样本：没有愿望可提的卡片不该被算成提议失败。行为层分布与无信号率仍以全部样本为分母。',
     'seen/dismissed 是整张卡片的反馈，不能归因到 F2 那一行；none 是暂无信号（不等于负面），无信号率以全部样本为分母。',
-    '用户感知仍不可直接测量。此处只做退化检测，不提供「有效率」，也不把任何单一数字当作效果证明。',
+    '阈值由规避成本决定而非数值：0.95 可被 0.94 零成本绕开，所以命中率饱和只是弱信号。表达多样性无法靠调数值规避——要降低重复率就得真的写不同的话，那正是我们要的结果；故多样性只给连续分布、不给布尔阈值。',
+    '摘录里内嵌了用户愿望原文，模板路径会因此天然显得「多样」，所以多样性同样必须按 path 分组读，不能跨路径比较；真正要看的是模型路径随时间的变化。',
+    '任一信号都不构成结论，组合与变化才值得看。用户感知仍不可直接测量：此处只做退化检测，不提供「有效率」，也不把任何单一数字当作效果证明。',
   ].join(' ');
   return { days: windowDays, since, total, staleSpansSkipped, byPath, divergence, note };
 }

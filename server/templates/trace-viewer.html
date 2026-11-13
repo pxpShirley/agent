@@ -237,6 +237,10 @@
 
   function renderStats(data) {
     let html = '<div class="stats-note"><b>这里没有「有效率」。</b>' + esc(data.note || '') + '</div>';
+    html += '<div class="stats-note" style="margin-top:0"><b>阈值该由规避成本决定，不该由数值决定。</b>' +
+      '把命中率压到 0.94 就能绕开任何 0.95 阈值，成本近乎为零；但要降低「提议句重复率」，' +
+      '唯一办法是真的写出不一样的话——那正是我们想要的结果。所以这里只给连续分布、' +
+      '不给「是否塌缩」的布尔开关。<b>任一信号都不构成结论，组合与变化才值得看。</b></div>';
     const d = data.divergence;
     const banner = d === 'suspicious'
       ? '⚠ 背离：模型路径的提议指标已饱和，但用户侧「划掉」多于「收下」——生成侧看起来完美，用户侧却在走低。'
@@ -257,10 +261,17 @@
       html += row('可评估 / 无愿望候选', s.eligible + ' / ' + s.noCandidate);
       html += row('② 词面率（启发式）', pct(s.mentionedRate));
       html += row('③ 提议率（启发式）', pct(s.nudgeRate));
-      html += '<div class="row2"><span>指标饱和</span><b class="' + (s.saturated ? 'warn' : 'ok') + '">' +
-        (s.saturated ? '⚠ 恒真，已被刷' : s.expectedSaturation ? '恒真（模板句式，预期内）' : '否') + '</b></div>';
+      html += '<div class="row2"><span>命中率饱和（弱信号）</span><b class="' + (s.saturated ? 'warn' : 'ok') + '">' +
+        (s.saturated ? '⚠ 恒真，可被 0.94 规避' : s.expectedSaturation ? '恒真（模板句式，预期内）' : '否') + '</b></div>';
       html += row('④ 收下 / 划掉', s.seen + ' / ' + s.dismissed);
       html += row('暂无信号率（全样本分母）', pct(s.noSignalRate));
+      const dv = s.diversity || {};
+      html += row('⑤ 提议句唯一率（难刷）', dv.covered ? pct(dv.uniqueRate) + '（' + dv.distinct + '/' + dv.covered + '）' : '无摘录记录');
+      html += row('最高频那句占比', dv.covered ? pct(dv.topRepeatShare) : '-');
+      if (dv.topExcerpt) {
+        html += '<div class="row2"><span>最常见的一句</span></div>' +
+          '<div style="font-size:11px;color:var(--muted);margin-top:4px;word-break:break-all">' + esc(dv.topExcerpt) + '</div>';
+      }
       html += '</div>';
     }
     html += '</div>';

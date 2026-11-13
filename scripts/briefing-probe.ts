@@ -24,6 +24,9 @@
  *  11) 分布健康度（古德哈特定律）：生成侧指标恒真 = 被刷到失去分辨力；
  *      模板恒真不污染模型路径判定；无信号率以全样本为分母；旧 span 跳过；
  *      时间窗过滤；生成侧饱和 + 用户侧走低 → 背离告警
+ *  12) 阈值由规避成本决定：0.94 式数值规避绕不过表达多样性；
+ *      恒真但文案各异不算塌缩；观测数据绝不回灌 prompt
+ *  13) 愿望识别入口：「我想养成…」必须进 plan 记忆，否则整个 F2 链没有候选
  *
  * 零成本：不调任何真实 API；临时库，跑完即删。
  * 红线自检：事实只用于生成 prompt 与只读观测，不把 trace 文本回灌上下文。
@@ -47,9 +50,11 @@ const {
   buildWeekly,
   goalEchoed,
   goalNudgePresent,
+  nudgeExcerpt,
   maybeAgent,
   tick,
 } = await import('../server/scheduler.js');
+const { runMockAgentTurn } = await import('../server/agent.js');
 
 let pass = 0;
 let fail = 0;
@@ -300,6 +305,69 @@ try {
   ok('★ 45 天前的样本被 30 天窗口排除、被 60 天窗口纳入',
     s30.total === s60.total - 1, `30d=${s30.total} 60d=${s60.total}`);
   ok('days 被夹到合法范围', db.getF2Stats(0).days >= 1 && db.getF2Stats(9999).days <= 365);
+
+  console.log('\n[briefing-probe] 12) 表达多样性：规避成本 = 目标本身');
+  const excerpt = (s: string) => nudgeExcerpt(s);
+  ok('抽出含提议语气的那句', excerpt('近期没有紧迫待办。今天要不要先迈出最小的一步？').includes('要不要'));
+  ok('纯提及抽不到摘录', excerpt('今天天气不错，记得早起') === '');
+  ok('★「节奏可以松一点」不算提议句（语气词过宽的回归）', excerpt('近期没有紧迫待办，节奏可以松一点') === '');
+  ok('空文案 → 空摘录', excerpt('') === '');
+  ok('摘录限长 80', excerpt('要不要' + '啊'.repeat(200)).length <= 80);
+
+  const div = db.summarizeDiversity;
+  ok('空摘录：无记录而非「重复」',
+    div([]).covered === 0 && div([]).uniqueRate === null && div([]).topRepeatShare === null);
+  const same = Array(5).fill('今天要不要先从早起十分钟开始？');
+  const dSame = div(same);
+  ok('五句全同 → 唯一率 0.2 / 最高频占比 1',
+    dSame.distinct === 1 && Math.abs(dSame.uniqueRate - 0.2) < 1e-9 && dSame.topRepeatShare === 1);
+  const varied = ['要不要先跑五分钟', '今天先试试早起', '不如从散步开始', '建议这周走两次', '咱们先定个小目标'];
+  const dVar = div(varied);
+  ok('五句全不同 → 唯一率 1 / 最高频占比 0.2',
+    dVar.distinct === 5 && dVar.uniqueRate === 1 && Math.abs(dVar.topRepeatShare - 0.2) < 1e-9);
+  ok('混合分布可读', Math.abs(div(['甲', '甲', '甲', '乙', '丙']).uniqueRate - 0.6) < 1e-9);
+  ok('空白摘录不计入', div(['', '  ', '甲', '甲']).covered === 2);
+  ok('★ 刻意不返回「是否塌缩」的布尔结论',
+    !('collapsed' in dSame) && !('threshold' in dSame));
+
+  // 核心场景：模型把命中率压到阈值以下（0.8 < 0.95），饱和告警不响，
+  // 但所有卡片都在复用同一句话 —— 多样性仍然抓得到。
+  const evadedRate = 4 / 5;
+  ok('★ 0.94 式数值规避确实躲开了饱和告警', evadedRate < 0.95);
+  ok('★ 但绕不过表达多样性（话术塌缩仍可见）', div(same).topRepeatShare === 1 && div(same).uniqueRate === 0.2);
+  // 反向：恒真不等于塌缩，两个证据必须独立读
+  ok('★ 恒真但文案各异 → 饱和为真、多样性为满，互不替代', dVar.uniqueRate === 1);
+
+  const sFinal = db.getF2Stats(30);
+  ok('每个路径都带 diversity 字段', sFinal.byPath.every((p: any) => p.diversity && typeof p.diversity.covered === 'number'));
+  const tpl = sFinal.byPath.find((p: any) => p.path === 'template');
+  ok('★ 新版 span 的提议句真的落库（模板路径 covered>=1）', !!tpl && tpl.diversity.covered >= 1,
+    `covered=${tpl?.diversity?.covered}`);
+  const mdl = sFinal.byPath.find((p: any) => p.path === 'model');
+  ok('★ 旧版/无摘录 span 不计入 covered（无记录≠重复）', !!mdl && mdl.diversity.covered === 0,
+    `covered=${mdl?.diversity?.covered}`);
+
+  // 红线：观测数据只能给面板，绝不能进生成 prompt
+  const factsFinal = collectBriefingFacts(OWNER);
+  const promptFinal = buildBriefingPrompt(OWNER, 'morning', factsFinal);
+  ok('★ 红线：观测指标不回灌 prompt',
+    !/uniqueRate|topRepeatShare|saturated|divergence|nudgeRate/.test(promptFinal) &&
+    !/uniqueRate|topRepeatShare|saturated|divergence|nudgeRate/.test(JSON.stringify(factsFinal)));
+
+  console.log('\n[briefing-probe] 13) 愿望识别入口（11-13 服务冒烟发现的漏识别）');
+  const wishOwner = 'wish-probe-owner';
+  for await (const _ev of runMockAgentTurn({
+    sessionId: 'wish-' + Date.now(),
+    message: '我想养成读书的习惯',
+    intent: 'other',
+    customerName: wishOwner,
+  })) { /* 排空生成器 */ }
+  const wishMems = db.getMemories(wishOwner, 50);
+  ok('★「我想养成…」被识别成 plan 愿望',
+    wishMems.some((m: any) => m.kind === 'plan' && String(m.key).startsWith('理想状态')),
+    JSON.stringify(wishMems.map((m: any) => [m.kind, m.key])));
+  ok('F2 事实层能挑到它', collectBriefingFacts(wishOwner).goals.length === 1);
+  ok('晨报提议句摘录可抽出', nudgeExcerpt(buildMorning(wishOwner).body).includes('要不要'));
 } finally {
   for (const [k, v] of Object.entries(saved)) {
     if (v === undefined) delete process.env[k];
