@@ -312,6 +312,148 @@ export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
   return out;
 }
 
+/** 指标饱和判定的最小样本量：少于它只是噪声，不配叫「恒真」 */
+const SATURATION_MIN = 5;
+const SATURATION_RATE = 0.95;
+
+export interface F2PathStats {
+  path: 'model' | 'template';
+  /** 全部样本（行为层分布的分母） */
+  samples: number;
+  /** 有愿望候选的样本：只有这些才「理应」给出提议，是词面率/提议率的分母 */
+  eligible: number;
+  /** 无愿望候选的样本：计入 samples，但不进率的分母 */
+  noCandidate: number;
+  mentionedRate: number | null;
+  nudgeRate: number | null;
+  /** 生成侧指标恒真 —— 不是「变好了」，是「这个指标已经被刷到失去分辨力」 */
+  saturated: boolean;
+  /** 模板路径固定句式，恒真是设计使然，不该当警报 */
+  expectedSaturation: boolean;
+  seen: number;
+  dismissed: number;
+  noSignal: number;
+  /** 分母是全部样本，不是「有反馈的样本」——否则会选择性偏差 */
+  noSignalRate: number | null;
+}
+export interface F2Stats {
+  days: number;
+  since: string;
+  total: number;
+  staleSpansSkipped: number;
+  byPath: F2PathStats[];
+  divergence: 'none' | 'suspicious' | 'insufficient';
+  note: string;
+}
+
+/**
+ * F2 分布健康度（只读，退化检测，不是效果证明）。
+ *
+ * 认识论前提：所有生成侧的文本指标（词面、提议句式）模型都能稳定复现，
+ * 因此**逐条布尔值没有意义，只有分布和变化有意义**。指标一旦恒真，
+ * 恰恰说明它已被优化到失去信息量（古德哈特定律）。
+ *
+ * 刻意的设计：
+ * ① **不返回单一「有效率」** —— 再造一个分数，就是再造一个会被当成
+ *    目标去刷的指标。
+ * ② **按 path 分组** —— 模板路径恒真是写死的句式，把它和模型路径混算
+ *    会稀释掉模型路径的异常，这是最容易踩的统计陷阱。
+ * ③ 无信号率以**全部样本**为分母，不只看有反馈的那些。
+ * ④ 用户侧行为由系统外产生、生成侧无法直接控制；当「生成侧饱和」
+ *    与「用户侧走低」同时出现，这个**背离**才是刷不动的信号。
+ *
+ * 红线：只读聚合，绝不回灌模型上下文。
+ */
+export function getF2Stats(days = 30): F2Stats {
+  const windowDays = Math.min(365, Math.max(1, Math.trunc(days) || 30));
+  const since = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+  const spans = db
+    .prepare(
+      `SELECT args_json FROM agent_spans
+       WHERE phase = 'intent' AND args_json LIKE '%"card_id"%' AND created_at >= ?`
+    )
+    .all(since) as Array<{ args_json: string }>;
+
+  // 用户侧行为：每卡取最新一条
+  const feedback = db
+    .prepare('SELECT card_id, action FROM proactive_feedback WHERE card_id IS NOT NULL ORDER BY created_at DESC')
+    .all() as Array<{ card_id: string; action: string }>;
+  const responseByCard = new Map<string, 'seen' | 'dismissed'>();
+  for (const f of feedback) {
+    if (responseByCard.has(f.card_id)) continue;
+    if (f.action === 'seen' || f.action === 'dismissed') responseByCard.set(f.card_id, f.action);
+  }
+
+  let staleSpansSkipped = 0;
+  const groups = new Map<'model' | 'template', {
+    samples: number; eligible: number; mentioned: number; nudge: number;
+    seen: number; dismissed: number; noSignal: number;
+  }>();
+  for (const s of spans) {
+    let j: any;
+    try { j = JSON.parse(s.args_json); } catch { staleSpansSkipped++; continue; }
+    // 旧版本 / 脏数据没有分层字段：跳过而不是当成 false，否则会把历史全算成「未命中」
+    if (!j?.card_id || typeof j.goal_mentioned !== 'boolean' || typeof j.nudge_present !== 'boolean') {
+      staleSpansSkipped++;
+      continue;
+    }
+    const path: 'model' | 'template' = j.path === 'model' ? 'model' : 'template';
+    const g = groups.get(path) || {
+      samples: 0, eligible: 0, mentioned: 0, nudge: 0, seen: 0, dismissed: 0, noSignal: 0,
+    };
+    g.samples++;
+    // 无愿望候选 → 不进率的分母：把它算成「提议失败」会把分母稀释成失真
+    if (j.facts_injected === true) {
+      g.eligible++;
+      if (j.goal_mentioned) g.mentioned++;
+      if (j.nudge_present) g.nudge++;
+    }
+    const r = responseByCard.get(j.card_id);
+    if (r === 'seen') g.seen++;
+    else if (r === 'dismissed') g.dismissed++;
+    else g.noSignal++;
+    groups.set(path, g);
+  }
+
+  const paths: Array<'model' | 'template'> = ['model', 'template'];
+  const byPath: F2PathStats[] = paths.filter((p) => groups.has(p)).map((p) => {
+    const g = groups.get(p)!;
+    const mentionedRate = g.eligible ? g.mentioned / g.eligible : null;
+    const nudgeRate = g.eligible ? g.nudge / g.eligible : null;
+    const saturated = g.eligible >= SATURATION_MIN && nudgeRate !== null && nudgeRate >= SATURATION_RATE && p === 'model';
+    const expectedSaturation = p === 'template' && g.eligible >= SATURATION_MIN && nudgeRate !== null && nudgeRate >= SATURATION_RATE;
+    return {
+      path: p,
+      samples: g.samples,
+      eligible: g.eligible,
+      noCandidate: g.samples - g.eligible,
+      mentionedRate,
+      nudgeRate,
+      saturated,
+      expectedSaturation,
+      seen: g.seen,
+      dismissed: g.dismissed,
+      noSignal: g.noSignal,
+      noSignalRate: g.samples ? g.noSignal / g.samples : null,
+    };
+  });
+
+  const model = byPath.find((x) => x.path === 'model');
+  let divergence: F2Stats['divergence'] = 'none';
+  if (!model || model.eligible < SATURATION_MIN) divergence = 'insufficient';
+  else if (model.saturated && model.dismissed > model.seen && model.dismissed > 0) divergence = 'suspicious';
+
+  const total = byPath.reduce((n, x) => n + x.samples, 0);
+  const note = [
+    '逐条布尔没有意义，只有分布和变化有意义：生成侧指标可被模型稳定复现，恒真不是变好，而是指标已被刷到失去分辨力（古德哈特定律）。',
+    '模板路径恒真属设计使然，只有模型路径的饱和值得警惕；两者必须分开统计。',
+    '词面率/提议率的分母只含「有愿望候选」的样本：没有愿望可提的卡片不该被算成提议失败。行为层分布与无信号率仍以全部样本为分母。',
+    'seen/dismissed 是整张卡片的反馈，不能归因到 F2 那一行；none 是暂无信号（不等于负面），无信号率以全部样本为分母。',
+    '用户感知仍不可直接测量。此处只做退化检测，不提供「有效率」，也不把任何单一数字当作效果证明。',
+  ].join(' ');
+  return { days: windowDays, since, total, staleSpansSkipped, byPath, divergence, note };
+}
+
 const FEEDBACK_KIND_LABEL: Record<string, string> = {
   morning: '每日晨报',
   weekly: '本周复盘',

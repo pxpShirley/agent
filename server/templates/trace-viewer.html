@@ -146,6 +146,33 @@
   .tag.none { color: var(--muted); }
   .tag.yes { color: var(--core); border-color: var(--core); }
   .tag.no { color: var(--muted); }
+  /* F2 分布健康度 */
+  .stats-note {
+    margin: 14px 18px 6px; padding: 10px 13px; font-size: 12px; line-height: 1.7;
+    color: var(--muted); background: var(--panel-2);
+    border-left: 3px solid var(--purple); border-radius: 4px;
+  }
+  .stats-note b { color: var(--purple); font-weight: 600; }
+  .divergence {
+    margin: 12px 18px 0; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    border: 1px solid var(--border); color: var(--muted); background: var(--panel-2);
+  }
+  .divergence.suspicious { color: var(--red); border-color: var(--red); background: rgba(255,122,122,.10); }
+  .divergence.insufficient { color: var(--gold); border-color: var(--gold); }
+  .divergence.none { color: var(--green); border-color: var(--green); }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px; margin: 12px 18px 30px;
+  }
+  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .stat-card h3 { margin: 0 0 10px; font-size: 13px; color: var(--core); }
+  .stat-card .row2 {
+    display: flex; justify-content: space-between; gap: 10px;
+    padding: 4px 0; font-size: 12px; color: var(--muted);
+  }
+  .stat-card .row2 b { color: var(--text); font-weight: 600; }
+  .stat-card .warn { color: var(--red); }
+  .stat-card .ok { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -163,6 +190,7 @@
       <h2 class="tabs-bar">
         <button class="tab active" id="tabTrace">回放时间线</button>
         <button class="tab" id="tabF2">F2 事后反馈</button>
+        <button class="tab" id="tabStats">F2 健康度</button>
       </h2>
       <div id="traceView"><div class="empty">从左侧选择一轮查看回放</div></div>
     </section>
@@ -184,6 +212,7 @@
   function setTab(which) {
     $('#tabTrace').classList.toggle('active', which === 'trace');
     $('#tabF2').classList.toggle('active', which === 'f2');
+    $('#tabStats').classList.toggle('active', which === 'stats');
   }
   $('#tabTrace').addEventListener('click', () => {
     setTab('trace');
@@ -191,6 +220,55 @@
     else traceView.innerHTML = '<div class="empty">从左侧选择一轮查看回放</div>';
   });
   $('#tabF2').addEventListener('click', () => { setTab('f2'); loadF2(); });
+  $('#tabStats').addEventListener('click', () => { setTab('stats'); loadStats(); });
+
+  const pct = (v) => v == null ? '-' : Math.round(v * 100) + '%';
+  async function loadStats() {
+    traceView.innerHTML = '<div class="loading">加载 F2 分布健康度…</div>';
+    try {
+      const sep = qs ? '&' : '?';
+      const res = await fetch('/api/admin/f2-stats' + qs + sep + 'days=30');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      renderStats(await res.json());
+    } catch (e) {
+      traceView.innerHTML = '<div class="err-banner">加载失败：' + esc(e.message) + '</div>';
+    }
+  }
+
+  function renderStats(data) {
+    let html = '<div class="stats-note"><b>这里没有「有效率」。</b>' + esc(data.note || '') + '</div>';
+    const d = data.divergence;
+    const banner = d === 'suspicious'
+      ? '⚠ 背离：模型路径的提议指标已饱和，但用户侧「划掉」多于「收下」——生成侧看起来完美，用户侧却在走低。'
+      : d === 'insufficient'
+      ? '样本不足：模型路径样本少于 5，尚不足以判断指标是否饱和；此时任何比率都只是噪声。'
+      : '暂无背离信号：这仍是「没发现退化」，不等于「F2 有效」。';
+    html += '<div class="divergence ' + esc(d) + '">' + esc(banner) + '</div>';
+    if (!data.byPath || !data.byPath.length) {
+      html += '<div class="empty">所选时间窗内还没有分层的 F2 记录</div>';
+      traceView.innerHTML = html;
+      return;
+    }
+    html += '<div class="stat-grid">';
+    for (const s of data.byPath) {
+      html += '<div class="stat-card"><h3>' + (s.path === 'model' ? '模型路径' : '模板路径') + '</h3>';
+      const row = (k, v) => '<div class="row2"><span>' + k + '</span><b>' + esc(v) + '</b></div>';
+      html += row('样本数', s.samples);
+      html += row('可评估 / 无愿望候选', s.eligible + ' / ' + s.noCandidate);
+      html += row('② 词面率（启发式）', pct(s.mentionedRate));
+      html += row('③ 提议率（启发式）', pct(s.nudgeRate));
+      html += '<div class="row2"><span>指标饱和</span><b class="' + (s.saturated ? 'warn' : 'ok') + '">' +
+        (s.saturated ? '⚠ 恒真，已被刷' : s.expectedSaturation ? '恒真（模板句式，预期内）' : '否') + '</b></div>';
+      html += row('④ 收下 / 划掉', s.seen + ' / ' + s.dismissed);
+      html += row('暂无信号率（全样本分母）', pct(s.noSignalRate));
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="stats-note" style="margin-top:0">统计窗口：最近 ' + esc(data.days) +
+      ' 天，有效样本 ' + esc(data.total) + ' 条，跳过旧版/脏 span ' + esc(data.staleSpansSkipped) +
+      ' 条。<b>生成侧指标可以被模型「刷」到恒真；系统外、跨时间且有代价的用户行为才是刷不动的那部分。</b></div>';
+    traceView.innerHTML = html;
+  }
 
   async function loadF2() {
     traceView.innerHTML = '<div class="loading">加载 F2 事后反馈…</div>';

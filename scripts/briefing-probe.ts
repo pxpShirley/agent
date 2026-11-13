@@ -21,6 +21,9 @@
  *      且生成时刻绝不伪造一个还不存在的行为结果
  *  10) 事后关联：card_id join proactive_feedback；无反馈是「暂无信号」不是负面；
  *      整卡反馈不能归因到 F2 单行
+ *  11) 分布健康度（古德哈特定律）：生成侧指标恒真 = 被刷到失去分辨力；
+ *      模板恒真不污染模型路径判定；无信号率以全样本为分母；旧 span 跳过；
+ *      时间窗过滤；生成侧饱和 + 用户侧走低 → 背离告警
  *
  * 零成本：不调任何真实 API；临时库，跑完即删。
  * 红线自检：事实只用于生成 prompt 与只读观测，不把 trace 文本回灌上下文。
@@ -30,6 +33,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 const tmp = path.join(os.tmpdir(), `briefing-probe-${Date.now()}.db`);
 process.env.CHAT_DB_PATH = tmp;
@@ -209,6 +213,93 @@ try {
     }
   }
   ok('未知 owner 的 outcomes 为空', db.getF2Outcomes('no-such-owner').length === 0);
+
+  console.log('\n[briefing-probe] 11) 分布健康度：指标恒真是退化，不是变好');
+  const STATS_OWNER = 'stats-probe-owner';
+  const sqlite = (db as any).default;
+  const seedSpan = (fields: Record<string, unknown>) => {
+    const runId = randomUUID();
+    const cardId = randomUUID();
+    db.addAgentRun({ id: runId, prompt: 'stats-probe', intent: 'proactive', model: 'scheduler', source: 'proactive' });
+    db.addAgentSpans(runId, [{
+      phase: 'intent',
+      text: 'stats probe span',
+      args_json: JSON.stringify({
+        card_id: cardId, kind: 'morning', path: 'model',
+        facts_injected: true, goal_mentioned: true, nudge_present: true,
+        user_response: 'pending', ...fields,
+      }),
+    }]);
+    return { runId, cardId };
+  };
+
+  const s0 = db.getF2Stats(30);
+  const model0 = s0.byPath.find((p: any) => p.path === 'model')?.samples || 0;
+  const tpl0 = s0.byPath.find((p: any) => p.path === 'template')?.samples || 0;
+  ok('刻意不返回单一「有效率」字段', !('effectiveRate' in s0) && !('successRate' in s0));
+
+  // 阶段 A：6 条模型路径全命中 → 提议率 100%，应当被判为「饱和/已被刷」
+  const modelCards: Array<{ runId: string; cardId: string }> = [];
+  for (let i = 0; i < 6; i++) modelCards.push(seedSpan({}));
+  db.recordProactiveFeedback(STATS_OWNER, modelCards[0].cardId, 'morning', 'seen');
+  for (let i = 1; i <= 3; i++) db.recordProactiveFeedback(STATS_OWNER, modelCards[i].cardId, 'morning', 'dismissed');
+  const sA = db.getF2Stats(30);
+  const mA: any = sA.byPath.find((p: any) => p.path === 'model');
+  ok('模型路径样本按增量计入', mA && mA.samples === model0 + 6, `got ${mA?.samples}`);
+  ok('提议率 = 100%', mA && mA.nudgeRate === 1);
+  ok('★ 恒真被判为饱和（不是「效果好」）', mA && mA.saturated === true);
+  ok('★ 行为分布：收下 1 / 划掉 3 / 暂无信号 2',
+    mA && mA.seen === 1 && mA.dismissed === 3 && mA.noSignal === 2,
+    JSON.stringify({ seen: mA?.seen, dismissed: mA?.dismissed, noSignal: mA?.noSignal }));
+  ok('★ 无信号率以全样本为分母（2/6）', mA && Math.abs(mA.noSignalRate - 2 / 6) < 1e-9);
+  ok('★ 生成侧饱和 + 用户侧走低 → 背离告警', sA.divergence === 'suspicious');
+
+  // 阶段 B：模板路径恒真是设计使然，绝不能污染模型路径的饱和判定
+  for (let i = 0; i < 6; i++) seedSpan({ path: 'template' });
+  const sB = db.getF2Stats(30);
+  const mB: any = sB.byPath.find((p: any) => p.path === 'model');
+  const tB: any = sB.byPath.find((p: any) => p.path === 'template');
+  ok('模板样本单独成组', tB && tB.samples === tpl0 + 6, `got ${tB?.samples}`);
+  ok('★ 模板恒真标为预期内，不算告警', tB && tB.expectedSaturation === true && tB.saturated === false);
+  ok('★ 模板恒真未污染模型路径判定', mB && mB.saturated === true && mB.samples === model0 + 6);
+
+  // 阶段 C：掺入 3 条未命中 → 不再饱和，背离告警解除
+  for (let i = 0; i < 3; i++) seedSpan({ nudge_present: false });
+  for (let i = 0; i < 3; i++) seedSpan({ nudge_present: true });
+  const sC = db.getF2Stats(30);
+  const mC: any = sC.byPath.find((p: any) => p.path === 'model');
+  ok('混合后提议率降至 0.75', mC && Math.abs(mC.nudgeRate - 0.75) < 1e-9, `got ${mC?.nudgeRate}`);
+  ok('★ 不再饱和，告警解除', mC && mC.saturated === false && sC.divergence === 'none');
+
+  // 阶段 C2：无愿望候选的卡片不能算「提议失败」（分母口径）
+  const sBeforeNoCand = db.getF2Stats(30);
+  const mBeforeNoCand: any = sBeforeNoCand.byPath.find((p: any) => p.path === 'model');
+  seedSpan({ facts_injected: false, goal_mentioned: false, nudge_present: false });
+  const sAfterNoCand = db.getF2Stats(30);
+  const mAfterNoCand: any = sAfterNoCand.byPath.find((p: any) => p.path === 'model');
+  ok('★ 无候选样本计入总样本', mAfterNoCand.samples === mBeforeNoCand.samples + 1);
+  ok('★ 但不进提议率分母', mAfterNoCand.eligible === mBeforeNoCand.eligible && mAfterNoCand.noCandidate === mBeforeNoCand.noCandidate + 1);
+  ok('★ 提议率不被稀释', mAfterNoCand.nudgeRate === mBeforeNoCand.nudgeRate,
+    `${mBeforeNoCand.nudgeRate} -> ${mAfterNoCand.nudgeRate}`);
+
+  // 阶段 D：旧格式 span 跳过（不能当成 false，否则历史全被算成未命中）；时间窗过滤
+  const beforeStale = db.getF2Stats(30);
+  const staleRun = randomUUID();
+  db.addAgentRun({ id: staleRun, prompt: 'old-format', intent: 'proactive', model: 'scheduler', source: 'proactive' });
+  db.addAgentSpans(staleRun, [{
+    phase: 'intent', text: 'old', args_json: JSON.stringify({ card_id: randomUUID(), path: 'model' }),
+  }]);
+  const sD = db.getF2Stats(30);
+  ok('★ 旧格式 span 被跳过而非计为未命中',
+    sD.total === beforeStale.total && sD.staleSpansSkipped === beforeStale.staleSpansSkipped + 1,
+    `total ${beforeStale.total}->${sD.total} skipped ${beforeStale.staleSpansSkipped}->${sD.staleSpansSkipped}`);
+  const oldIso = new Date(Date.now() - 45 * 86_400_000).toISOString();
+  sqlite.prepare('UPDATE agent_spans SET created_at = ? WHERE run_id = ?').run(oldIso, modelCards[5].runId);
+  const s30 = db.getF2Stats(30);
+  const s60 = db.getF2Stats(60);
+  ok('★ 45 天前的样本被 30 天窗口排除、被 60 天窗口纳入',
+    s30.total === s60.total - 1, `30d=${s30.total} 60d=${s60.total}`);
+  ok('days 被夹到合法范围', db.getF2Stats(0).days >= 1 && db.getF2Stats(9999).days <= 365);
 } finally {
   for (const [k, v] of Object.entries(saved)) {
     if (v === undefined) delete process.env[k];

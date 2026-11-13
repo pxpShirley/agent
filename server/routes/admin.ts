@@ -175,6 +175,13 @@ app.get('/api/admin/f2-outcomes', (req, res) => {
   });
 });
 
+// F2 分布健康度（只读）：只做退化检测，刻意不返回单一「有效率」。
+// ⚠️ 红线：聚合结果只给观测面板，绝不回灌模型上下文。
+app.get('/api/admin/f2-stats', (req, res) => {
+  const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+  res.json(db.getF2Stats(days));
+});
+
 // 回放查看器页面（自包含只读 HTML）：浏览器直接打开即可回放任意一轮
 app.get('/api/admin/trace', (_req, res) => {
   res.type('text/html').send(TRACE_VIEWER_HTML);
