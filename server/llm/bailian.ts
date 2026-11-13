@@ -15,7 +15,8 @@ import * as db from '../db.js';
 import type { IntentCode } from '../db.js';
 import { activeToolDefs, execTool, askUser } from '../tools/registry.js';
 import type { ToolContext } from '../tools/registry.js';
-import { buildSystemPrompt, buildMemoryContext, MAX_AGENT_ITERATIONS } from '../agent.js';
+import { MAX_AGENT_ITERATIONS } from '../agent.js';
+import { assembleContext } from '../context/assemble.js';
 import { guardBareQuestion, couldBeBareQuestion } from '../clarify.js';
 import type { ClarifyCtx } from '../clarify.js';
 import { SpanCollector, summarizeText } from '../trace.js';
@@ -80,19 +81,9 @@ function resolveProvider(modelOverride?: string): CompatProvider {
 
 // ----------------------------------------------------------------
 // 工具：唯一注册表在 server/tools/registry.ts（schema 与实现同处定义）
-// 本文件只负责「schema → OpenAI function 格式」的转换与调用编排，不再自己实现工具。
+// schema → OpenAI function 的适配移到 server/context/assemble.ts，与上下文装配同源：
+// 主循环直接下发 assembleContext().tools，预算里计量的就是真正下发的那一份。
 // ----------------------------------------------------------------
-
-function toOpenAiTools(defs: Array<{ name: string; description: string; parameters: any }>) {
-  return defs.map((d) => ({
-    type: 'function',
-    function: {
-      name: d.name,
-      description: d.description,
-      parameters: d.parameters,
-    },
-  }));
-}
 
 // ----------------------------------------------------------------
 // DashScope 流式调用（function calling 累加）
@@ -257,39 +248,10 @@ export async function pingCompatEngine(): Promise<{
 // ----------------------------------------------------------------
 
 /**
- * 组装多轮对话上下文。
- * 没有这段，每轮只把「当前这一句话」发给模型，模型完全失忆——
- * 用户说「设置一个提醒」时它不知道上文在聊什么，只能空泛反问「提醒什么事？什么时候？」，显得很笨。
- * 从最近一条往前取，受条数与总字符数双重限制，避免长会话把上下文撑爆。
+ * 多轮历史与全部上下文的装配已迁到 server/context/assemble.ts（P1）。
+ * 装配器按总预算实测 system / memory / tools / 本轮消息，剩余全给历史；
+ * 旧的 buildHistory(12 轮 / 6000 字符) 硬编码不再存在。
  */
-function buildHistory(
-  sessionId: string,
-  current: string,
-  maxTurns = 12,
-  maxChars = 6000
-): Array<{ role: 'user' | 'assistant'; content: string }> {
-  let rows: any[] = [];
-  try {
-    rows = db.getMessagesBySession(sessionId);
-  } catch {
-    return [];
-  }
-  const picked: Array<{ role: 'user' | 'assistant'; content: string }> = [];
-  let chars = 0;
-  const cur = String(current || '').trim();
-  for (let i = rows.length - 1; i >= 0 && picked.length < maxTurns; i--) {
-    const r = rows[i];
-    if (r.role !== 'user' && r.role !== 'assistant') continue;
-    const c = String(r.content || '').trim();
-    if (!c) continue;
-    // 当前这条用户消息通常已落库，跳过它，避免模型看到两遍
-    if (i === rows.length - 1 && r.role === 'user' && c === cur) continue;
-    if (chars + c.length > maxChars) break;
-    picked.unshift({ role: r.role as 'user' | 'assistant', content: c });
-    chars += c.length;
-  }
-  return picked;
-}
 
 /**
  * 「打开《某产物》」意图的服务端兜底。
@@ -336,15 +298,15 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
     return;
   }
   const mdl = provider.model;
-  // 预注入记忆必须带上本轮原话：不带就退化成「取最近 N 条」，
-  // 模型拿不到相关的那几条，还是得再花一轮去调 recall_memory。
-  const memoryContext = buildMemoryContext(owner, String(message || ''));
-  // 工具集先算出来，提示词里的「可用能力清单」必须由它派生——两者必须同源，
-  // 否则会出现「提示词禁止调用清单外的工具，而真正要用的工具恰好在清单外」。
+  // 工具集先算出来：提示词能力清单、实际下发 schema、预算里的工具体积
+  // 全部由这一份派生（装配器内部不再另取一份）。
   const toolDefs = omitTools?.length
     ? activeToolDefs(owner).filter((t) => !omitTools.includes(t.name))
     : activeToolDefs(owner);
-  const system = systemOverride || buildSystemPrompt(memoryContext, toolDefs.map((t) => t.name));
+  // 「打开产物」兜底：命中时把真实内容拼进用户消息，避免模型凭记忆编造。
+  // ⚠️ 必须早于装配：这段内容也要计入本轮预算，漏算就等于预算失真。
+  const opened = tryFindArtifactContent(owner, String(message || ''));
+  const userContent = opened ? `${String(message || '')}\n\n${opened}` : String(message || '');
   const toolsUsed: string[] = [];
   let fullText = '';
   // 护栏生成的「可点选澄清选项」（最后一轮纯文本被判为空泛反问时产出）；随 done 下发给前端
@@ -361,6 +323,29 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
   const runId = skipRecord ? '' : uuidv4();
   const collector = skipRecord ? null : new SpanCollector();
   if (collector) collector.intent('intent', `intent=${intent} · model=${mdl} · owner=${owner}`);
+
+  // P1 上下文装配：主循环唯一获取上下文的出口。预算由模型窗口与每轮 cap 取 min，
+  // 固定段（system/memory/tools/本轮消息）实测扣减，剩余全给历史。
+  const assembled = assembleContext({
+    owner,
+    sessionId,
+    message: String(message || ''),
+    currentChars: userContent.length,
+    toolDefs,
+    model: mdl,
+    systemOverride,
+  });
+  // 预算遥测只进只读 trace，绝不回灌模型上下文（Trace 红线）。
+  if (collector) {
+    const a = assembled.allocation;
+    collector.intent(
+      'intent',
+      `context budget · effective=${a.effectiveTokens}t · fixed=${a.fixedChars}c` +
+        ` · history上限=${a.historyChars}c/${a.maxTurns}轮 · 实用=${assembled.stats.historyChars}c` +
+        ` · memory=${assembled.stats.memoryCount}条 · trimmed=${assembled.stats.trimmed}` +
+        ` · tight=${a.tight} · overBudget=${a.overBudget}`
+    );
+  }
 
   // 活动流遥测：把本轮 agent 自主动作写入 agent_runs，让指挥舱「活动流」有真实内容
   const recordRun = () => {
@@ -391,20 +376,16 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 180000);
 
-  // 「打开产物」兜底：命中时把真实内容拼进用户消息，避免模型凭记忆编造
-  const opened = tryFindArtifactContent(owner, String(message || ''));
-  const userContent = opened ? `${String(message || '')}\n\n${opened}` : String(message || '');
-  const history = buildHistory(sessionId, String(message || ''));
   const messages: any[] = [
-    { role: 'system', content: system },
-    ...history,
+    { role: 'system', content: assembled.system },
+    ...assembled.history,
     { role: 'user', content: userContent },
   ];
 
   // 「空泛反问」护栏上下文：只保护「提醒/待办」一族，并带回上文说过的时间/事件做推断依据
   const clarifyCtx: ClarifyCtx = {
     message: String(message || ''),
-    history: history
+    history: assembled.history
       .filter((m: { role: string }) => m.role === 'user')
       .map((m: { content: string }) => String(m.content || ''))
       .slice(-6),
@@ -423,7 +404,7 @@ export async function* runBailianAgentTurn(opts: AgentTurnOptions): AsyncGenerat
       // 本轮模型完整输出（不受「空泛反问」护栏的 held/reset 影响），用于 trace 的 think span
       let iterFull = '';
       let held = true; // 仍处于「可能空泛反问」的观察窗
-      for await (const chunk of streamCompat(provider, messages, toOpenAiTools(toolDefs), ac.signal)) {
+      for await (const chunk of streamCompat(provider, messages, assembled.tools, ac.signal)) {
         if (chunk.kind === 'text') {
           iterText += chunk.content;
           iterFull += chunk.content;

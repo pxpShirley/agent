@@ -12,7 +12,7 @@
  *      数据层与引擎一律动态 import。
  *   2. 消息落库是路由的职责，不是引擎的（bailian.ts 只读历史不写历史）。
  *      所以多轮用例必须由运行器自己把 user / assistant 消息写进去，
- *      否则 `buildHistory` 读不到上一轮，多轮指代那条就成了单轮空转。
+ *      否则 `assembleContext()` 读不到上一轮，多轮指代那条就成了单轮空转。
  *
  * 运行：npm run eval          跑全部
  *      npm run eval -- <关键字>   只跑 id 含关键字的用例
@@ -23,6 +23,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { CASES, SELF_DENIAL, type EvalCase } from '../evals/cases.js';
+import { isBareQuestion } from '../server/clarify.js';
 
 const tmpDb = path.join(os.tmpdir(), `xinglan-eval-${Date.now()}.db`);
 process.env.CHAT_DB_PATH = tmpDb;
@@ -73,6 +74,9 @@ function judge(c: EvalCase, text: string, tools: string[]): string[] {
     why.push(`未调用任一工具：${e.toolCalledAny.join(' / ')}`);
   for (const t of e.toolNotCalled ?? []) if (tools.includes(t)) why.push(`不该调用 ${t}`);
   if (e.noSelfDenial) for (const s of SELF_DENIAL) if (text.includes(s)) why.push(`自我否定话术「${s}」`);
+  // 与护栏共用同一个判据，而不是拿话术表做 substring 禁令：
+  // 「已设好今晚 22:30 提醒，要改内容/时间跟我说」里出现「什么时候」并不是把球踢回去。
+  if (e.noBareQuestion && isBareQuestion(text)) why.push('整句是空泛反问（把球踢回给用户了）');
   return why;
 }
 

@@ -10,7 +10,10 @@
  *   B. 观察窗：couldBeBareQuestion 必须是 isBareQuestion 的超集（宁可多憋字，不可漏拦）；
  *   C. 生成：buildClarification 的产物**不得**含任何空泛反问话术、且**必须**带具体时间；
  *   D. 总入口：guardBareQuestion 只在提醒一族 + 真·空泛反问时 repaired:true；
- *   E. 单一真相源：evals 的 EMPTY_QUESTION 就是 BARE_QUESTION_PHRASES 本身。
+ *   E. 单一真相源：evals 的 EMPTY_QUESTION 就是 BARE_QUESTION_PHRASES 本身；
+ *   F. 判据同源（11-13）：eval 判定模型输出改用 isBareQuestion 的结构性判据，
+ *      不拿整张话术表做 mustNotInclude——后者会把「已设好今晚 22:30 提醒，
+ *      要改内容/时间跟我说」误判成把球踢回去。
  *
  * 运行：npx tsx scripts/clarify-probe.ts
  */
@@ -24,6 +27,8 @@ import {
   isReminderish,
 } from '../server/clarify.js';
 import { EMPTY_QUESTION } from '../evals/cases.js';
+import fs from 'fs';
+import path from 'path';
 
 let pass = 0;
 let fail = 0;
@@ -100,6 +105,24 @@ ok('isReminderish 命中提醒', isReminderish('帮我设个提醒'));
 ok('isReminderish 不命中天气', !isReminderish('北京天气'));
 ok('EMPTY_QUESTION === BARE_QUESTION_PHRASES（单一真相源）', EMPTY_QUESTION === BARE_QUESTION_PHRASES);
 ok('话术库非空且含「提醒什么事」', BARE_QUESTION_PHRASES.includes('提醒什么事'));
+
+// —— G. eval 判据同源（11-13）：既不能放水，也不能误判好回复 ——
+const SHORT_GOOD = '先按今晚 22:30 记上，要改什么时候都行。';
+const LONG_GOOD =
+  '「设个提醒」——我先按最常见的场景给你一个：今晚 22:30 提醒你早点睡，' +
+  '要改时间你说一声；如果不是这件事，告诉我提醒什么、什么时候、要不要每天重复就行。';
+ok('★ 真空泛反问仍被抓住（防放水）',
+  isBareQuestion('提醒什么事？') && isBareQuestion('什么时候？'));
+ok('★ 短回复带具体默认值不算空泛反问', !isBareQuestion(SHORT_GOOD));
+ok('★ 长回复给了具体推断也不算空泛反问', !isBareQuestion(LONG_GOOD));
+ok('★ 但词面禁令会误判这两句好回复（所以不能拿话术表当判据）',
+  [SHORT_GOOD, LONG_GOOD].every((t) => BARE_QUESTION_PHRASES.some((p) => t.includes(p))));
+ok('★ eval 用例确实改用 noBareQuestion（不是注释里说说）',
+  !/mustNotInclude:\s*EMPTY_QUESTION/.test(
+    fs.readFileSync(path.join(process.cwd(), 'evals/cases.ts'), 'utf-8')
+  ) && /noBareQuestion:\s*true/.test(
+    fs.readFileSync(path.join(process.cwd(), 'evals/cases.ts'), 'utf-8')
+  ));
 
 console.log(`\nclarify-probe：${pass} 通过 / ${fail} 失败\n`);
 process.exit(fail ? 1 : 0);

@@ -34,15 +34,15 @@ export interface MemoryBudget {
 }
 
 /**
- * 默认预算的推导（deepseek-chat / qwen-plus 一类 64K 窗口模型）：
- *   系统提示词固定部分        ≈ 2 600 字符
- *   工具 schema（约 13 个）   ≈ 4 000 token
- *   多轮历史 buildHistory     ≤ 6 000 字符
- *   本轮输出                  ≤ 1 500 token
- *   以上合计远小于 64K，真正的风险不是撑爆窗口，而是**每轮都付费**——
- *   记忆区块每多 1000 字符，每一轮对话都要多付这 1000 字符的输入成本。
- * 所以取「够让模型认出这个人」的最小充分值：约 12 条 × 150 字符 ≈ 1 800 字符。
- * 可用 MEMORY_CHAR_BUDGET 环境变量覆盖（换模型 / 调优时无需改代码）。
+ * 默认预算的推导（2026-11-13 · P1 后）：
+ *   记忆注入量仍由本文件的 charBudget / maxItems / snippetMax 控制（检索化已在
+ *   selectMemories 落地）。它的**实际产出字符数**会被 server/context/assemble.ts
+ *   实测并计入每轮总预算，剩余才分给历史——四处常数各算各的时代结束了。
+ *   ⚠️ 旧注释里「多轮历史 ≤ 6000 字符」是 buildHistory 的硬编码，P1 后已移除；
+ *   历史上限改由 AGENT_CONTEXT_CAP / 模型窗口推导（见 context/budget.ts）。
+ * 真正的风险不是撑爆窗口（64K），而是**每轮都付费**：记忆区块每多 1000 字符，
+ * 每一轮对话都要多付这 1000 字符的输入成本。故取「够让模型认出这个人」的
+ * 最小充分值：约 12 条 × 150 字符 ≈ 1800 字符。可用 MEMORY_CHAR_BUDGET 覆盖。
  */
 export const DEFAULT_MEMORY_BUDGET: MemoryBudget = {
   charBudget: Number(process.env.MEMORY_CHAR_BUDGET || 1800),

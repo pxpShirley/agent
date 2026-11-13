@@ -18,6 +18,7 @@ import type { IntentCode } from './db.js';
 import { webSearch } from './tools/web.js';
 import { syncReminder } from './actions/outbound.js';
 import { selectMemories, formatMemoryLine } from './memory.js';
+import type { MemoryBudget } from './memory.js';
 import { SpanCollector, summarizeJson, summarizeText } from './trace.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -126,12 +127,17 @@ function goalKey(text: string): string {
  *
  * @param query 本轮用户原话。**必须传**——不传就退化成旧的「取最近 N 条」，
  *   预注入就失去了意义（模型还是得再调一次 recall_memory 才能拿到相关的）。
+ * @param budget 可选预算覆盖（P1：装配器可把总预算派生的记忆上限传进来）。
+ *   ⚠️ 选取与渲染必须用**同一份** snippetMax，否则 selectMemories 按 A 截断算预算、
+ *   formatMemoryLine 按 B 渲染，实际注入字符会超出预算而不自知。
  */
-export function buildMemoryContext(owner: string, query = ''): string {
+export function buildMemoryContext(owner: string, query = '', budget: Partial<MemoryBudget> = {}): string {
   const rows = db.getMemories(owner, MEMORY_CANDIDATE_POOL);
   if (!rows.length) return '（暂无记录，可在对话中逐步了解这位用户）';
-  const picked = selectMemories(rows, query);
-  return picked.length ? picked.map((r) => formatMemoryLine(r)).join('\n') : '（暂无记录，可在对话中逐步了解这位用户）';
+  const picked = selectMemories(rows, query, budget);
+  return picked.length
+    ? picked.map((r) => formatMemoryLine(r, budget.snippetMax)).join('\n')
+    : '（暂无记录，可在对话中逐步了解这位用户）';
 }
 
 /**

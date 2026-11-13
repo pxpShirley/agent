@@ -47,6 +47,13 @@ export interface Expect {
   toolNotCalled?: string[];
   /** 幻觉防线：不许出现"刚才其实没做 / 这次是真的"这类自我否定 */
   noSelfDenial?: boolean;
+  /**
+   * 整句不得是「纯空泛反问」。复用 server/clarify.ts 的 isBareQuestion
+   * （短 + 无具体默认值 + 整句把球踢回去），与护栏判据同源。
+   * ⚠️ 不要用 mustNotInclude(BARE_QUESTION_PHRASES) 代替它：那是**话术库**不是判据，
+   * 会把「已设好今晚 22:30 提醒，要改内容/时间跟我说」里列举「什么时候」误判成踢皮球。
+   */
+  noBareQuestion?: boolean;
 }
 
 export interface EvalCase {
@@ -64,9 +71,11 @@ export interface EvalCase {
 }
 
 /**
- * 空泛反问的话术库：把球整个踢回给用户，是提示词第 7 条明令禁止的。
- * 直接复用 server/clarify.ts 的 BARE_QUESTION_PHRASES——判据只有这一份，
- * 避免「eval 禁一批话术、护栏却放另一批」导致护栏生成的替代回复反而被 eval 判违规。
+ * 空泛反问的**话术库**：护栏生成替代文案时，逐条禁止出现这些串
+ * （自己写的罐头文案当然不该换个说法继续踢皮球），clarify-probe 会断言
+ * 它与 server/clarify.ts 的 BARE_QUESTION_PHRASES 是同一份（单一真相源）。
+ * ⚠️ 它是「生成禁词」，**不是「判定判据」**：判定模型输出请用 Expect.noBareQuestion，
+ * 它复用 isBareQuestion 的结构性判据，避免把好回复里的字段列举误判成反问。
  */
 export const EMPTY_QUESTION = BARE_QUESTION_PHRASES;
 
@@ -105,7 +114,7 @@ export const CASES: EvalCase[] = [
       toolCalled: ['set_reminder'],
       // 内容里必须带上文的信息，证明它不是凭空编了个提醒
       mustIncludeAny: ['国贸', '开会'],
-      mustNotInclude: EMPTY_QUESTION,
+      noBareQuestion: true,
     },
   },
   {
@@ -137,11 +146,13 @@ export const CASES: EvalCase[] = [
       '禁止的行为是回一句「提醒什么事？」把球踢回去。' +
       '⚠️ 这里**不强求调工具**：提示词第 7 条给的范例本身就是「帮你设个『今晚 22:30 早点睡』的提醒？你说一声我就改」——' +
       '先给具体推断、让用户一句话确认，是合规的（第一版断言要求必须调 set_reminder/ask_user，属于我把自己的偏好写成了标准）。' +
-      '真正要守住的是：回复里必须有**具体时间**，且不能是空泛反问。',
+      '真正要守住的是：回复里必须有**具体时间**，且整句不是空泛反问。' +
+      '⚠️ 判定用 noBareQuestion（复用护栏的 isBareQuestion），不是「回复里不许出现话术库的任何词」：' +
+      '模型给完具体推断后列举「要改内容/时间跟我说」是合规的，词面禁令会把这种好回复误判。',
     intent: 'schedule',
     turns: ['帮我设个提醒'],
     expect: {
-      mustNotInclude: EMPTY_QUESTION,
+      noBareQuestion: true,
       mustMatchAny: [/\d{1,2}[:：]\d{2}/, /\d{1,2}\s*点/, /(上午|下午|中午|晚上|早上|今晚|明早|明天)/],
     },
   },

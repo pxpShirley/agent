@@ -2,7 +2,8 @@
 
 > 本文是**后续开发的总纲**。每一条设计都锚定现有代码位置、给出数据结构、接口签名与迁移步骤。
 > 范围外（本期不做）：鉴权 / 多用户隔离、沙箱执行提权。
-> 事实基线：`MAX_AGENT_ITERATIONS=6`、`buildHistory(maxTurns=12, maxChars=6000)`、`MEMORY_CONTEXT_LIMIT=12`、`MEMORY_SNIPPET_MAX=160`、提示词 11 条行为约束 + 5 条输出纪律、工具 13 个。
+> 事实基线（2026-11-13 · P1 后）：`MAX_AGENT_ITERATIONS=6`；上下文由 `server/context/assemble.ts` 的 `assembleContext()` 唯一装配，预算由 `server/context/budget.ts` 按 `min(模型窗口, AGENT_CONTEXT_CAP)` 分配，历史字符数与条数均由预算推导；记忆注入 `selectMemories(charBudget=1800, maxItems=12, snippetMax=160)`；提示词 11 条行为约束 + 5 条输出纪律；工具注册表 `server/tools/registry.ts`（按 owner 动态裁剪）。
+> ⚠️ 旧的 `buildHistory(12 轮 / 6000 字符)` 与 `MEMORY_CONTEXT_LIMIT` 硬编码已移除，勿再引用。
 
 ---
 
@@ -30,6 +31,8 @@
 2. **记忆是"注入式"而非"检索式"** —— 只取最近 12 条、按时间序，与当前问题相关性为零。
 3. **可观测有表无视图** —— `agent_runs` 已记录 `tools_used/outcome/model`，但无 trace 视图，且**主循环内部决策未落span**。
 4. **无回归网** —— `scripts/` 下是一次性探针，改 prompt/模型无法判断整体是变好还是变坏。
+
+> **落地进度（2026-11-13）**：短板 2（记忆检索化 `selectMemories`）、短板 3（回放级 `agent_spans` + trace 视图）已落地；短板 1 的「无 token 预算」已由 P1 `server/context/assemble.ts` 解决（统一预算装配），「无滚动摘要」仍是 P2 待办；短板 4 的 Evals 骨架已落地。本节原始描述保留作设计起点。
 
 ---
 
@@ -158,6 +161,13 @@ export function allocate(budget: TokenBudget): {
 - `window`：deepseek-chat 取 64k 级别保守值（配置化，不硬编码）。
 - `historyChars = window - reserveOutput - system - tools - memory` 后换算成字符。
 - **禁止**再出现"12 轮 / 6000 字符"这类魔法数字，全部由预算算出。
+
+> **落地差异（2026-11-13，以实现为准）**：实际 `server/context/budget.ts` 没有采用上面
+> 「给每段各拍一个 token 数」的接口——那只是把 12/6000 换成另一组魔法数。改为
+> `allocate(budget, usage)`：传入装配器**实测**的 system / memory / tools / current 字符数，
+> 扣减后剩余全给历史；`memoryCount` 由 `assembleContext().stats` 给出，条数护栏也由预算
+> 推导。总预算只有 `AGENT_CONTEXT_CAP` 一个可配置量，能力上限（模型窗口）与成本上限
+> （每轮 cap）取 min。回归见 `scripts/context-budget-probe.ts`（55 项）。
 
 ### 3.2 滚动摘要
 
@@ -340,7 +350,7 @@ export interface Skill {
 | **P0** | Trace 表 +回放级 span + 治理面板 trace 视图 | 一轮对话能看到每步工具入参/出参/耗时 |
 | **P1** | ✅ **多工具并发执行已落地**（只读白名单 + `Promise.all`） | `parallel_rounds > 0` 且 tool 消息按原序回填 |
 | **P1** | ✅ **记忆检索化（`selectMemories`）已落地** | `scripts/memory-select-probe.ts` 26 项全绿；相关记忆零工具调用即可命中 |
-| **P1** | `server/context/budget.ts` + `assemble.ts` + **L0+ ③ 轮内预算守卫** | 历史长度由预算决定；轮内超预算可裁剪 |
+| **P1** | ✅ **预算驱动上下文装配已落地**（`server/context/budget.ts` + `assemble.ts`，`assembleContext` 为唯一出口） | `scripts/context-budget-probe.ts` 55 项全绿；历史上限/条数由预算推导，12 轮 / 6000 字符硬编码已移除 |
 | **P2** | 滚动摘要 `compactOldTurns` | 长会话（>30 轮）早期内容仍能被引用 |
 | **P3** | Skills 包化（先抽1~2 个域试点） | 新增能力不改编排主流程 |
 
