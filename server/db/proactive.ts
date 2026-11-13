@@ -256,6 +256,12 @@ export interface F2Outcome {
   responded_at: string | null;
   goal_mentioned: boolean | null;
   nudge_present: boolean | null;
+  /**
+   * 判为提议的那一句原文，摊开给观测者人工复核。
+   * ⚠️ 判据只是弱启发式（语气词 + 时间/量词同句共现），不等于真的给出
+   * 了可执行一步；布尔值会撒谎，原文不会。null = 旧版 span 无此字段或无摘录。
+   */
+  nudge_excerpt: string | null;
   path: 'model' | 'template' | null;
 }
 export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
@@ -274,7 +280,9 @@ export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
   const spanRows = db
     .prepare(`SELECT args_json FROM agent_spans WHERE phase = 'intent' AND args_json LIKE '%"card_id"%'`)
     .all() as Array<{ args_json: string }>;
-  const evidence = new Map<string, { goal_mentioned: boolean; nudge_present: boolean; path: string }>();
+  const evidence = new Map<string, {
+    goal_mentioned: boolean; nudge_present: boolean; path: string; nudge_excerpt: string;
+  }>();
   for (const r of spanRows) {
     try {
       const j = JSON.parse(r.args_json);
@@ -282,6 +290,7 @@ export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
         goal_mentioned: Boolean(j.goal_mentioned),
         nudge_present: Boolean(j.nudge_present),
         path: String(j.path || ''),
+        nudge_excerpt: typeof j.nudge_excerpt === 'string' ? j.nudge_excerpt : '',
       });
     } catch {
       /* 旧 span / 脏数据忽略 */
@@ -305,6 +314,8 @@ export function getF2Outcomes(owner?: string, limit = 50): F2Outcome[] {
       responded_at: action === 'none' ? null : r.responded_at,
       goal_mentioned: ev ? ev.goal_mentioned : null,
       nudge_present: ev ? ev.nudge_present : null,
+      // 旧版 span 没有摘录字段：返回 null（「没记录」），不要拿空串冒充「判为无提议」
+      nudge_excerpt: ev ? (ev.nudge_excerpt || null) : null,
       path: ev && (ev.path === 'model' || ev.path === 'template') ? ev.path : null,
     });
     if (out.length >= limit) break;
@@ -372,6 +383,12 @@ export interface F2PathStats {
   expectedSaturation: boolean;
   /** 表达多样性：规避它就得真的写不同的话，因而是更难刷的独立证据 */
   diversity: DiversityStat;
+  /**
+   * 「判为提议却没有摘录」的样本数：新版 span 里两者同源，应恒为 0；
+   * 非 0 只可能是旧版 span（当时还没记摘录）。显式暴露它，是为了让
+   * 提议率与多样性 covered 的分母差**可见**，而不是静默少算。
+   */
+  excerptMissing: number;
   seen: number;
   dismissed: number;
   noSignal: number;
@@ -434,7 +451,7 @@ export function getF2Stats(days = 30): F2Stats {
   let staleSpansSkipped = 0;
   const groups = new Map<'model' | 'template', {
     samples: number; eligible: number; mentioned: number; nudge: number;
-    seen: number; dismissed: number; noSignal: number; excerpts: string[];
+    seen: number; dismissed: number; noSignal: number; excerpts: string[]; excerptMissing: number;
   }>();
   for (const s of spans) {
     let j: any;
@@ -446,7 +463,8 @@ export function getF2Stats(days = 30): F2Stats {
     }
     const path: 'model' | 'template' = j.path === 'model' ? 'model' : 'template';
     const g = groups.get(path) || {
-      samples: 0, eligible: 0, mentioned: 0, nudge: 0, seen: 0, dismissed: 0, noSignal: 0, excerpts: [],
+      samples: 0, eligible: 0, mentioned: 0, nudge: 0, seen: 0, dismissed: 0,
+      noSignal: 0, excerpts: [], excerptMissing: 0,
     };
     g.samples++;
     // 无愿望候选 → 不进率的分母：把它算成「提议失败」会把分母稀释成失真
@@ -455,8 +473,9 @@ export function getF2Stats(days = 30): F2Stats {
       if (j.goal_mentioned) g.mentioned++;
       if (j.nudge_present) {
         g.nudge++;
-        // 旧版 span 没有摘录字段：不计入 covered，不把「无记录」当成「重复」
+        // 旧版 span 没有摘录字段：不计入 covered，但显式记一笔，别把「没记录」当成「重复」
         if (typeof j.nudge_excerpt === 'string' && j.nudge_excerpt.trim()) g.excerpts.push(j.nudge_excerpt);
+        else g.excerptMissing++;
       }
     }
     const r = responseByCard.get(j.card_id);
@@ -483,6 +502,7 @@ export function getF2Stats(days = 30): F2Stats {
       saturated,
       expectedSaturation,
       diversity: summarizeDiversity(g.excerpts),
+      excerptMissing: g.excerptMissing,
       seen: g.seen,
       dismissed: g.dismissed,
       noSignal: g.noSignal,
@@ -503,6 +523,8 @@ export function getF2Stats(days = 30): F2Stats {
     'seen/dismissed 是整张卡片的反馈，不能归因到 F2 那一行；none 是暂无信号（不等于负面），无信号率以全部样本为分母。',
     '阈值由规避成本决定而非数值：0.95 可被 0.94 零成本绕开，所以命中率饱和只是弱信号。表达多样性无法靠调数值规避——要降低重复率就得真的写不同的话，那正是我们要的结果；故多样性只给连续分布、不给布尔阈值。',
     '摘录里内嵌了用户愿望原文，模板路径会因此天然显得「多样」，所以多样性同样必须按 path 分组读，不能跨路径比较；真正要看的是模型路径随时间的变化。',
+    '提议层判据是弱启发式（语气词与时间/量词在同一句共现），不等于真的给出可执行一步，也会漏判换了说法的合法提议；「F2 事后反馈」页把判为提议的原文摊开供人工复核，别只看布尔列。',
+    '提议句摘录与「判为提议」同源：新版数据里「命中但无摘录」应恒为 0，非 0 说明混入了旧版 span，此时多样性 covered 小于提议率分子，两个分母不可直接比较。',
     '任一信号都不构成结论，组合与变化才值得看。用户感知仍不可直接测量：此处只做退化检测，不提供「有效率」，也不把任何单一数字当作效果证明。',
   ].join(' ');
   return { days: windowDays, since, total, staleSpansSkipped, byPath, divergence, note };

@@ -268,6 +268,9 @@
       const dv = s.diversity || {};
       html += row('⑤ 提议句唯一率（难刷）', dv.covered ? pct(dv.uniqueRate) + '（' + dv.distinct + '/' + dv.covered + '）' : '无摘录记录');
       html += row('最高频那句占比', dv.covered ? pct(dv.topRepeatShare) : '-');
+      // 提议率与多样性 covered 的分母差必须可见：新版数据两者同源，非 0 即混入旧版 span
+      html += '<div class="row2"><span>命中但无摘录（旧版 span）</span><b class="' +
+        (s.excerptMissing ? 'warn' : 'ok') + '">' + esc(s.excerptMissing || 0) + '</b></div>';
       if (dv.topExcerpt) {
         html += '<div class="row2"><span>最常见的一句</span></div>' +
           '<div style="font-size:11px;color:var(--muted);margin-top:4px;word-break:break-all">' + esc(dv.topExcerpt) + '</div>';
@@ -297,7 +300,9 @@
     // 归因边界必须写在看得见的地方：否则「收下/划掉」会被误读成 F2 生效与否
     let html = '<div class="f2-note"><b>归因边界：</b>' + esc(note) +
       '<br>①②③ 是生成时刻的证据（材料层确定性、词面/提议层启发式）；' +
-      '④ 是之后用户对<b>整张卡片</b>的行为。两者不能互相替代，也不能合并成一个「生效」结论。</div>';
+      '④ 是之后用户对<b>整张卡片</b>的行为。两者不能互相替代，也不能合并成一个「生效」结论。' +
+      '<br><b>提议层只是弱启发式</b>：判据为「语气词 + 时间/量词在同一句共现」，不等于真的给出可执行一步，' +
+      '也会漏判换了个说法的合法提议。右列摊开判为提议的原文，请以原文人工复核，别只看布尔列。</div>';
     if (!rows.length) {
       html += '<div class="empty">暂无晨报 / 复盘卡片记录</div>';
       traceView.innerHTML = html;
@@ -305,7 +310,7 @@
     }
     html += '<table class="f2-table"><thead><tr>' +
       '<th>生成时间</th><th>类型</th><th>路径</th><th>②词面</th><th>③提议</th>' +
-      '<th>④整卡反馈</th><th>卡片摘要</th></tr></thead><tbody>';
+      '<th>④整卡反馈</th><th>③判为提议的那句（原文可复核）</th><th>卡片摘要</th></tr></thead><tbody>';
     const tag = (cls, text) => '<span class="tag ' + cls + '">' + esc(text) + '</span>';
     for (const r of rows) {
       const resp = r.response === 'seen' ? tag('seen', '收下')
@@ -321,6 +326,7 @@
         '<td>' + (r.nudge_present === null ? tag('none', '无记录')
           : r.nudge_present ? tag('yes', '有') : tag('no', '无')) + '</td>' +
         '<td>' + resp + (r.responded_at ? '<div class="excerpt">' + esc(fmtTime(r.responded_at)) + '</div>' : '') + '</td>' +
+        '<td class="excerpt">' + (r.nudge_excerpt ? esc(r.nudge_excerpt) : tag('none', '无摘录 / 无记录')) + '</td>' +
         '<td class="excerpt">' + esc(r.body_excerpt) + '</td>' +
         '</tr>';
     }

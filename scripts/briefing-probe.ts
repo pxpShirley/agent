@@ -27,6 +27,9 @@
  *  12) 阈值由规避成本决定：0.94 式数值规避绕不过表达多样性；
  *      恒真但文案各异不算塌缩；观测数据绝不回灌 prompt
  *  13) 愿望识别入口：「我想养成…」必须进 plan 记忆，否则整个 F2 链没有候选
+ *  14) 提议层判据同源：主判据与摘录必须派生自同一函数（跨句假阳性、
+ *      nudge_present ⟺ 摘录非空、提议率与多样性 covered 同一分母、
+ *      outcomes 摊开原文供人工复核）
  *
  * 零成本：不调任何真实 API；临时库，跑完即删。
  * 红线自检：事实只用于生成 prompt 与只读观测，不把 trace 文本回灌上下文。
@@ -50,6 +53,7 @@ const {
   buildWeekly,
   goalEchoed,
   goalNudgePresent,
+  findNudgeSentence,
   nudgeExcerpt,
   maybeAgent,
   tick,
@@ -368,6 +372,91 @@ try {
     JSON.stringify(wishMems.map((m: any) => [m.kind, m.key])));
   ok('F2 事实层能挑到它', collectBriefingFacts(wishOwner).goals.length === 1);
   ok('晨报提议句摘录可抽出', nudgeExcerpt(buildMorning(wishOwner).body).includes('要不要'));
+
+  console.log('\n[briefing-probe] 14) 提议层判据同源（只收紧摘录、没收紧主判据留下的口径裂缝）');
+  // 修前：goalNudgePresent 对整段分别跑 TONE/STEP，nudgeExcerpt 按句做双条件。
+  // 「可以」在 A 句、「今天」在 B 句就能拼出 nudge_present=true，但一句提议都没有。
+  const crossA = '今天把待办理一理。\n节奏可以松一点。';
+  const crossB = '这周事情不多。\n要不要我帮你看看？先歇会儿。';
+  ok('★ 跨句拼接不再被判为提议（反例 A）', goalNudgePresent(crossA) === false);
+  ok('★ 跨句拼接不再被判为提议（反例 B）', goalNudgePresent(crossB) === false);
+  ok('★ 无愿望候选的模板晨报整段不再被判有提议',
+    goalNudgePresent(buildMorning(EMPTY_OWNER).body) === false,
+    JSON.stringify(buildMorning(EMPTY_OWNER).body));
+
+  const corpus = [
+    '', crossA, crossB,
+    '近期没有紧迫待办，节奏可以松一点',
+    '今天天气不错，记得早起',
+    '· 你说过想「想每天早起跑步」——今天要不要先迈出最小的一步？',
+    '· 关于你提过的「早起」——这周有没有往前挪一点点？没的话，下周咱们从最小的一步开始。',
+    '不如从散步开始吧，今天先走 10 分钟',
+    buildMorning(OWNER).body,
+    buildWeekly(OWNER).body,
+    buildMorning(EMPTY_OWNER).body,
+  ];
+  ok('★ 同源不变量：nudge_present=true ⟺ 摘录非空（全语料）',
+    corpus.every((b) => goalNudgePresent(b) === (nudgeExcerpt(b) !== '')));
+  ok('★ 两个导出函数都委托唯一判据', corpus.every((b) => nudgeExcerpt(b) === findNudgeSentence(b)));
+  ok('模板晨报仍判为有提议（防回归）', goalNudgePresent(buildMorning(OWNER).body));
+  ok('模板周复盘仍判为有提议（防回归）', goalNudgePresent(buildWeekly(OWNER).body));
+  ok('周复盘摘录落在「咱们从最小的一步开始」那句',
+    nudgeExcerpt(buildWeekly(OWNER).body).includes('咱们'));
+
+  // 真实调度产生的 span（组 9 tick 落库）也必须满足同源
+  if (f2Span) {
+    const realMeta = JSON.parse(String(f2Span.args_json));
+    ok('★ 真实调度 span：判为提议 ⟺ 有摘录',
+      realMeta.nudge_present === Boolean(realMeta.nudge_excerpt),
+      JSON.stringify(realMeta));
+    const realCard = (db as any).getProactiveCardById(realMeta.card_id);
+    ok('真实调度 span 的摘录可由判据从卡片原文复算',
+      !!realCard && String(realMeta.nudge_excerpt || '') === nudgeExcerpt(realCard.body));
+    const f2Row = db.getF2Outcomes(OWNER, 50).find((o: any) => o.card_id === realMeta.card_id);
+    ok('★ outcomes 回传提议句原文供人工复核',
+      !!f2Row && (f2Row.nudge_excerpt ?? '') === String(realMeta.nudge_excerpt || ''),
+      JSON.stringify(f2Row));
+  }
+
+  // 分母一致性：用增量隔离历史脏 span（组 11 的 seedSpan 刻意模拟旧版无摘录）
+  const before = db.getF2Stats(30);
+  const mBefore: any = before.byPath.find((p: any) => p.path === 'model');
+  const seedModern = (excerptText: string) => {
+    const runId = randomUUID();
+    db.addAgentRun({ id: runId, prompt: 'nudge-homology', intent: 'proactive', model: 'scheduler', source: 'proactive' });
+    db.addAgentSpans(runId, [{
+      phase: 'intent', text: 'homology',
+      args_json: JSON.stringify({
+        card_id: randomUUID(), kind: 'morning', path: 'model',
+        facts_injected: true, goal_mentioned: true, nudge_present: true,
+        nudge_excerpt: excerptText, user_response: 'pending',
+      }),
+    }]);
+  };
+  for (let i = 0; i < 3; i++) seedModern(`今天要不要先从早起十分钟开始？第 ${i} 版`);
+  const afterModern = db.getF2Stats(30);
+  const mAfterModern: any = afterModern.byPath.find((p: any) => p.path === 'model');
+  ok('★ 新版同源样本：excerptMissing 增量为 0',
+    mAfterModern.excerptMissing === (mBefore?.excerptMissing ?? 0),
+    `${mBefore?.excerptMissing} -> ${mAfterModern.excerptMissing}`);
+  ok('★ 多样性 covered 增量 == 新增提议命中数（提议率同一分母）',
+    mAfterModern.diversity.covered - (mBefore?.diversity.covered ?? 0) === 3,
+    `${mBefore?.diversity?.covered} -> ${mAfterModern.diversity.covered}`);
+  ok('三条不同摘录 → 唯一率保持 1（新分母确实生效）',
+    mAfterModern.diversity.distinct - (mBefore?.diversity?.distinct ?? 0) === 3);
+
+  // 旧版 span：判为命中但没记摘录 → 分母差必须显式可见，不能静默少算
+  seedModern('');
+  const afterStale = db.getF2Stats(30);
+  const mAfterStale: any = afterStale.byPath.find((p: any) => p.path === 'model');
+  ok('★ 旧版 span 的分母差被显式暴露（excerptMissing +1、covered 不变）',
+    mAfterStale.excerptMissing === mAfterModern.excerptMissing + 1 &&
+    mAfterStale.diversity.covered === mAfterModern.diversity.covered,
+    JSON.stringify({ missing: mAfterStale.excerptMissing, covered: mAfterStale.diversity.covered }));
+
+  ok('★ 红线：判据/摘录不回灌 prompt',
+    !/findNudgeSentence|NUDGE_TONE|nudge_excerpt|nudge_present|excerptMissing/.test(promptFinal) &&
+    !/findNudgeSentence|nudge_excerpt|excerptMissing/.test(JSON.stringify(factsFinal)));
 } finally {
   for (const [k, v] of Object.entries(saved)) {
     if (v === undefined) delete process.env[k];

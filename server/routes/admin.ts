@@ -171,7 +171,7 @@ app.get('/api/admin/f2-outcomes', (req, res) => {
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
   res.json({
     outcomes: db.getF2Outcomes(owner, limit),
-    note: 'seen/dismissed 是整张晨报/复盘卡片的反馈，不能归因到 F2 那一行；none = 暂无信号（不等于负面）。词面/提议均为启发式，用户感知不可直接测量。',
+    note: 'seen/dismissed 是整张晨报/复盘卡片的反馈，不能归因到 F2 那一行；none = 暂无信号（不等于负面）。词面/提议均为弱启发式：提议层只判「语气词 + 时间/量词在同一句共现」，不等于真的给出可执行一步，也会漏判换了说法的合法提议；nudge_excerpt 摊开原文供人工复核。用户感知不可直接测量。',
   });
 });
 

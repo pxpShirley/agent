@@ -373,14 +373,37 @@ export function goalEchoed(body: string, goals: Array<{ value: string }>): boole
  *
  * 为什么需要它：goalEchoed 只要命中「早起」两个字就返回 true，于是
  * 「今天天气不错，记得早起」也会被判成 F2 生效——那是提及，不是教练。
- * 这里要求**提议语气**与**具体一步**同时出现，双条件比单词匹配严格得多。
- * 仍是启发式：只用于观测，不参与生成、不回灌模型上下文（红线）。
+ * 这里要求**同一句里**提议语气与具体一步同时出现，双条件比单词匹配严格得多。
+ * 注意它仍只是弱启发式（语气词 + 时间/量词共现），不代表真的给了可执行建议；
+ * 只用于观测，不参与生成、不回灌模型上下文（红线）。
  */
 const NUDGE_TONE = /要不要|要不|不如|试试|试一下|咱们|建议|可以|来个|先试试/;
 const NUDGE_STEP = /一小步|最小的一步|迈出|往前挪|今天|这周|从[^，。！？]{0,10}开始|[0-9０-９]+\s*(分钟|公里|页|步|个|件)/;
+
+/**
+ * 提议层**唯一判据**：抽出「同一句里既有提议语气、又有具体一步」的那一句。
+ *
+ * ⚠️ 单一真相源：goalNudgePresent（是否命中）与 nudgeExcerpt（命中句原文）
+ *    都必须从这里派生，绝不能各写一份正则或各自解释判据。
+ *    修前的教训：主判据对**整段**分别跑 TONE/STEP，摘录却按句做双条件 →
+ *    「可以」在 A 句、「今天」在 B 句就能拼出 nudge_present=true，却没有
+ *    任何一句是提议。后果是两个谎言同时出现：提议率虚高，且
+ *    nudge_present=true 但 excerpt='' 让多样性 covered 静默少算、分母对不上。
+ *
+ * 仍是弱启发式：语气词 + 时间/量词**同句共现**，不等于真的给出了可执行
+ * 的最小一步；合法但换了个说法的提议也会被判 false。因此原文要摊开给
+ * 人复核（见 F2Outcome.nudge_excerpt），不能把布尔值当结论。
+ * 只用于只读观测，不参与生成、不回灌模型上下文（红线）。
+ */
+export function findNudgeSentence(body: string): string {
+  if (!body) return '';
+  const parts = String(body).split(/[。！？\n；;]/).map((s) => s.trim()).filter(Boolean);
+  return parts.find((p) => NUDGE_TONE.test(p) && NUDGE_STEP.test(p))?.slice(0, 80) ?? '';
+}
+
+/** 提议层（启发式）。恒等价于 nudgeExcerpt(body) !== '' —— 见 findNudgeSentence */
 export function goalNudgePresent(body: string): boolean {
-  if (!body) return false;
-  return NUDGE_TONE.test(body) && NUDGE_STEP.test(body);
+  return findNudgeSentence(body) !== '';
 }
 
 /**
@@ -391,15 +414,12 @@ export function goalNudgePresent(body: string): boolean {
  * 要降低重复率，唯一办法是真的写出不一样的表达——而那正是我们想要的结果。
  * 换句话说，这个信号的**规避成本等于目标本身**（incentive-aligned）。
  *
+ * 直接委托唯一判据，保证「判为命中」与「有摘录」永远是同一批样本，
+ * 提议率与多样性覆盖率才用得上同一个分母。
  * 只用于只读观测，绝不回灌模型上下文（红线）。
  */
 export function nudgeExcerpt(body: string): string {
-  if (!body) return '';
-  const parts = String(body).split(/[。！？\n；;]/).map((s) => s.trim()).filter(Boolean);
-  // 必须与 goalNudgePresent 同判据（语气 + 具体一步双条件）：
-  // 只匹配语气词会把「节奏可以松一点」这种闲聊句当成提议句，抢在 F2 那句前面。
-  const hit = parts.find((p) => NUDGE_TONE.test(p) && NUDGE_STEP.test(p));
-  return hit ? hit.slice(0, 80) : '';
+  return findNudgeSentence(body);
 }
 
 /**
@@ -443,7 +463,8 @@ function describeF2(
     facts_injected: goals.length > 0,
     goal_mentioned: mentioned,
     nudge_present: nudge,
-    // 提议句摘录：用于跨卡片检测「话术塌缩」，见 nudgeExcerpt 注释
+    // 与 nudge_present 同源（都派生自 findNudgeSentence）：命中时必有摘录，
+    // 提议率与多样性覆盖率才是同一批样本、同一个分母
     nudge_excerpt: nudge ? nudgeExcerpt(c.body) : '',
     user_response: 'pending',
     caveat: '词面/提议为启发式；seen/dismissed 是整卡反馈，不能归因到 F2 单行',
